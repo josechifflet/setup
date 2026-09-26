@@ -1,0 +1,22 @@
+{
+  "autoRun": {
+    "block_instructions": [
+      "Never run `git reset`: Every form moves HEAD and can orphan commits, eventually lost to GC.",
+      "Never run `git clean (-[A-Za-z]*f|--force)`: Deletes untracked files irrecoverably; only the force forms delete.",
+      "Never run `git branch( +[^ ]+)* +(-[A-Za-z]*[dDmMf]|--(delete|move|force))`: Deletes, renames or force-moves a branch, which throws away a ref the user made. Creating one is additive and stays allowed, as does every listing form — this rule used to deny `git branch <name>` too, and took `git branch -a --sort=… 2>/dev/null` with it, because a redirection reads as a branch name.",
+      "Never run `git checkout( +[^ ]+)* +(--( |$)|-[A-Za-z]*[fB]|--force)`: Only the discarding forms: a pathspec after `--` overwrites the worktree with no reflog to recover it from, `-f` does the same to the whole tree, and `-B` moves an existing branch. Moving to a branch and `-b` are navigation, not destruction, and stay allowed.",
+      "Never run `git restore`: Always rewrites index or worktree; no variant is safe enough to allow.",
+      "Never run `git stash`: Moves uncommitted work somewhere the user did not put it.",
+      "Never run `git switch( +[^ ]+)* +(-[A-Za-z]*[fC]|--force|--discard-changes)`: The forms that throw uncommitted work away or move an existing branch. Plain `git switch <branch>`, `-c` and `git switch -` refuse to run when they would lose work, so git guards them and this rule does not.",
+      "Never run `git rebase`: Rewrites history that may already be shared.",
+      "Never run `git commit --amend`: Rewrites the last commit; plain commit stays allowed.",
+      "Never run `git rm`: Removes tracked files from the worktree, not just the index.",
+      "Never run `git gc`: Prunes unreachable objects that are the recovery path for a bad reset.",
+      "Never run `git prune`: Same recovery-path destruction as gc.",
+      "Never run `git reflog expire`: The reflog is the last thing standing after a destructive command.",
+      "Never run `git update-ref`: Moves refs beneath the porcelain, bypassing every other guard.",
+      "Never run `git worktree (remove|prune)`: Deletes a checkout that may hold uncommitted work, or the admin data that finds one. `add`, `list` and `move` are additive and stay allowed, which is what `wt` drives and what agent-level isolation:\"worktree\" already uses.",
+      "Read-only git (status, diff, log, show) is fine; never run any destructive or history-rewriting git command."
+    ]
+  }
+}

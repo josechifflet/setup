@@ -1,0 +1,171 @@
+# Grok CLI configuration — overlay merged into ~/.grok/config.toml.
+#
+# install.sh merges this file over the live one. Grok rewrites the live file
+# on exit (comments go, [ui] keys of its own appear). Auth, sessions and
+# the marketplace cache stay under ~/.grok and are never in this repo.
+#
+# Secrets stay out: auth is ~/.grok/auth.json. Grok does not read
+# config.local.toml; a process overlay is GROK_CONFIG / GROK_CONFIG_PATH.
+#
+# Config reference: https://docs.x.ai/build/settings/reference (#toml-values)
+# Precedence: CLI flags > env > requirements/MDM > GROK_CONFIG overlay >
+# this file > managed_config.toml > built-in defaults.
+[cli]
+installer = "internal"
+
+[models]
+default = "grok-4.6"
+default_reasoning_effort = "high"
+
+# Privacy posture (mirrors codex telemetry-off and claude DISABLE_ERROR_REPORTING).
+[features]
+telemetry = false
+feedback = false
+# The researcher subagent fetches pages by URL; web_fetch ships off by default.
+web_fetch = true
+
+# Cross-session memory stays off. Remote settings turn memory_v2 on for this
+# account; v2 supersedes legacy when its own enabled is true, so both gates pin false.
+[memory]
+enabled = false
+
+[memory_v2]
+enabled = false
+
+# trace_upload inherits the [features] telemetry toggle when unset; pinned false
+# so session/trace uploads stay off even if telemetry is ever flipped on.
+[telemetry]
+trace_upload = false
+mixpanel_enabled = false
+
+# Match the codex/claude 120s foreground shell timeout.
+[toolset.bash]
+timeout_secs = 120.0
+
+# Ask before any tool call not already allowed, matching codex on-request.
+# `permission_mode` wins over the legacy `yolo` key, which is left out.
+# Opt into auto-approve for one session with `grok --always-approve`.
+# Deny rules and PreToolUse hooks apply in every mode.
+[ui]
+permission_mode = "ask"
+
+# Decouple from Claude Code AND Cursor — Grok scans only its own native sources.
+# Skills come from ~/.agents/skills/, which Grok finds on its own (see the note
+# above [plugins] below); the git-safety hook from ~/.grok/hooks/, and rules
+# from ~/.grok/AGENTS.md; the [permission] block carries the git denies. The one
+# remaining ~/.claude read is the shared plugin cache, which has no compat cell
+# (see [plugins] below). All compat cells default true.
+#
+# Project `.claude/settings.json` permission rules still merge with no toggle
+# (Skill() prefixes skip). Generic top-level CLAUDE.md still loads; home
+# ~/.claude/Claude.md does not, because agents is false.
+[compat.claude]
+skills = false    # ignore ~/.claude/skills/ and <cwd>/.claude/skills/
+rules = false     # ignore <cwd>/.claude/rules/
+agents = false    # ignore ~/.claude/ CLAUDE.md / CLAUDE.local.md
+mcps = false      # ignore ~/.claude.json MCP; plugins carry context7 + paper
+hooks = false     # ignore ~/.claude/settings.json hooks
+sessions = true   # resume-claude is bundled; this cell lets it scan
+
+# Same decoupling rationale as [compat.claude]: ~/.cursor/ here is installed from
+# the same repo sources, so scanning it would double-load
+# the same rules/hooks. All cells default true.
+[compat.cursor]
+skills = false    # ignore ~/.cursor/skills/ and <cwd>/.cursor/skills/
+rules = false     # ignore <cwd>/.cursor/rules/
+agents = false    # ignore ~/.cursor/ AGENTS.md
+mcps = false      # ignore ~/.cursor/mcp.json and <cwd>/.cursor/mcp.json
+hooks = false     # ignore ~/.cursor/hooks.json and <cwd>/.cursor/hooks.json
+sessions = false  # staged cell (foreign-session scanner), pinned off
+
+# Codex compat: only the sessions cell is live (staged foreign-session scanner);
+# its other cells are reserved/inert, so nothing else to pin here.
+[compat.codex]
+sessions = false
+
+# There is deliberately no [skills] block. Grok natively scans ~/.agents/skills/
+# (Agents.md standard — no compat toggle exists for it), which is the one library
+# every tool here reads, so it needs no configuration to find it. A `[skills]
+# ignore` used to point Grok at ~/.grok/skills/ instead, back when the fan-out
+# wrote that tree; nothing has written it since, so the ignore was pinning Grok
+# to a stale copy. Re-adding it reintroduces exactly that.
+#
+# Grok therefore reads the library the way Codex does: whole, with no per-skill
+# filter, which is why `metadata.install-targets` has no `grok` value to name.
+
+# Grok still discovers plugins under ~/.claude/plugins/ (no compat cell). Keep
+# `enabled` empty so that cache cannot register MCP. Context7 and Paper are
+# native HTTP below — one registration per host, same as Cursor and opencode.
+#
+# ${CONTEXT7_API_KEY} expands at load from the environment.
+# Paper answers on loopback only while Paper Desktop has a file open.
+[mcp_servers.context7]
+url = "https://mcp.context7.com/mcp"
+
+[mcp_servers.context7.headers]
+CONTEXT7_API_KEY = "${CONTEXT7_API_KEY}"
+
+[mcp_servers.paper]
+url = "http://127.0.0.1:29979/mcp"
+
+[plugins]
+disabled = []
+enabled = []
+
+# Native git-safety: deny wins over allow (deny > ask > allow) regardless of
+# source and holds under always-approve; the ~/.grok/hooks/ PreToolUse hook is
+# the belt-and-suspenders layer that runs first. Claude-tool denies
+# (SendMessage, EnterPlanMode, …) are meaningless in Grok and stay out.
+[permission]
+deny = [
+  "Bash(git reset*)",
+  "Bash(git clean -*f*)",
+  "Bash(git branch -d *)",
+  "Bash(git branch -D *)",
+  "Bash(git branch -m *)",
+  "Bash(git branch -M *)",
+  "Bash(git branch -f *)",
+  "Bash(git branch --delete*)",
+  "Bash(git branch --move*)",
+  "Bash(git branch --force*)",
+  "Bash(git checkout -- *)",
+  "Bash(git checkout * -- *)",
+  "Bash(git checkout -f*)",
+  "Bash(git checkout -B *)",
+  "Bash(git checkout --force*)",
+  "Bash(git restore*)",
+  "Bash(git stash*)",
+  "Bash(git switch -f*)",
+  "Bash(git switch -C *)",
+  "Bash(git switch --force*)",
+  "Bash(git switch --discard-changes*)",
+  "Bash(git rebase*)",
+  "Bash(git commit --amend*)",
+  "Bash(git rm*)",
+  "Bash(git gc*)",
+  "Bash(git prune*)",
+  "Bash(git reflog expire*)",
+  "Bash(git update-ref*)",
+  "Bash(git worktree remove*)",
+  "Bash(git worktree prune*)",
+]
+allow = [
+  "Bash(git status)",
+  "Bash(git diff *)",
+  "Bash(git log *)",
+  "Bash(git show *)",
+  "Bash(git add *)",
+  "Bash(shellcheck *)",
+  "Bash(shfmt *)",
+  "Bash(zsh -n *)",
+]
+
+# xAI plugin marketplace (Grok manages this block at runtime; kept so a fresh
+# sync does not trigger re-detection on next launch).
+[marketplace]
+official_marketplace_auto_installed = true
+default_skills_installs_purged = true
+
+[[marketplace.sources]]
+name = "xAI Official"
+git = "https://github.com/xai-org/plugin-marketplace.git"

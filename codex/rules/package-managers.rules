@@ -1,0 +1,20 @@
+# Publish targets an agent must not run without asking. Build and test targets
+# get no allow rule: they run repo-defined code, and an allow rule would run it
+# outside the sandbox with no prompt. Inside the sandbox they need no rule.
+
+# Publishing is the user's call, and a release script is the one npm target that
+# leaves the machine.
+prefix_rule(
+    pattern = [["npm", "pnpm", "bun"], ["run"], ["deploy", "release", "publish"]],
+    decision = "prompt",
+    justification = "Deploy and release scripts publish external state; read the script and confirm the target first.",
+    match = [
+        "npm run deploy",
+        "pnpm run release",
+        "bun run publish",
+    ],
+    not_match = [
+        "npm run build",
+        "pnpm run test",
+    ],
+)

@@ -1,0 +1,5 @@
+interface:
+  display_name: "UI Principles"
+  short_description: "Manifesto for clean, scannable UI layout"
+policy:
+  allow_implicit_invocation: true

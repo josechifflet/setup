@@ -1,0 +1,5 @@
+interface:
+  display_name: "Handoff"
+  short_description: "Handoff document and kickoff prompt"
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,17 @@
+# Recursive deletion is the one filesystem operation with no undo and no reflog.
+# Prompt rather than forbid: an agent cleaning up a build directory it made is
+# the common case, and the target is what needs looking at.
+prefix_rule(
+    pattern = [["rm"], ["-rf", "-fr", "-r", "-R"]],
+    decision = "prompt",
+    justification = "Recursive rm deletes trees irreversibly; check the target, and prefer `trash` where it is available.",
+    match = [
+        "rm -rf dist",
+        "rm -r tmp",
+        "rm -R build",
+    ],
+    not_match = [
+        "rm file.txt",
+        "trash dist",
+    ],
+)

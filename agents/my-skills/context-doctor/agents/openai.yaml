@@ -1,0 +1,3 @@
+interface:
+  display_name: "Context Doctor"
+  short_description: "Minimize the target repository’s agent-context Markdown"

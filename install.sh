@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# Install this setup into the agent homes under $HOME.
+#
+#   ./install.sh      install
+#   ./install.sh -n   list what would change, write nothing
+#
+# Files are copied, never symlinked: every agent writes state into its home,
+# and a symlink would carry those writes back into this repo.
+# A replaced file is kept beside it as <name>.bak.
+set -euo pipefail
+
+repo="$(cd "$(dirname "$0")" && pwd)"
+dry=""
+[[ "${1:-}" == "-n" ]] && dry="-nv"
+
+# jq is also what the git hooks need; without it they refuse every git command.
+for tool in jq yq rsync; do
+  command -v "$tool" > /dev/null || {
+    echo "install.sh: $tool is missing" >&2
+    exit 1
+  }
+done
+
+# The apps rewrite these files themselves, so they are merged, not copied:
+# the keys here win, and every key the app wrote survives.
+merged="claude/settings.json codex/config.toml grok/config.toml cursor/mcp.json cursor/cli-config.json"
+
+# copy <repo dir> <home dir>
+copy() {
+  local excludes=() f
+  for f in $merged; do
+    [[ "${f%/*}" == "$1" ]] && excludes+=(--exclude "/${f##*/}")
+  done
+  [[ -n "$dry" ]] || mkdir -p "$2"
+  rsync -a ${dry:+"$dry"} --backup --suffix=.bak --exclude .DS_Store \
+    ${excludes[@]+"${excludes[@]}"} "$repo/$1/" "$2/"
+}
+
+# merge <repo file> <home file>
+merge() {
+  local live="$2" tmp new=""
+  if [[ -n "$dry" ]]; then
+    echo "merge $1 into $live"
+    return
+  fi
+  mkdir -p "$(dirname "$live")"
+  tmp="$(mktemp)"
+  # Codex expands neither ~ nor $HOME in its config.
+  sed "s|@HOME@|$HOME|g" "$repo/$1" > "$tmp"
+  # 0600: API-key headers get added to these files by hand. A new file still
+  # goes through the merge, so the next run finds nothing to rewrite.
+  [[ -f "$live" ]] || { install -m 600 "$tmp" "$live" && new=1; }
+  # shellcheck disable=SC2016  # $f is a yq variable
+  case "$live" in
+    *.toml) yq -p toml -o toml eval-all '. as $f ireduce ({}; . * $f)' "$live" "$tmp" ;;
+    *) jq -s '.[0] * .[1]' "$live" "$tmp" ;;
+  esac > "$tmp.out" || echo "install.sh: $live does not parse; left alone" >&2
+  # cat, not mv: keeps the live file's mode.
+  if [[ -s "$tmp.out" ]] && ! cmp -s "$tmp.out" "$live"; then
+    [[ -n "$new" ]] || cp "$live" "$live.bak"
+    cat "$tmp.out" > "$live"
+  fi
+  rm -f "$tmp" "$tmp.out"
+}
+
+[[ -n "$dry" ]] || mkdir -p "$HOME/.agents"
+rsync -a ${dry:+"$dry"} --backup --suffix=.bak "$repo/agents/AGENTS.md" "$HOME/.agents/"
+copy claude "$HOME/.claude"
+copy codex "$HOME/.codex"
+copy cursor "$HOME/.cursor"
+copy grok "$HOME/.grok"
+copy opencode "$HOME/.config/opencode"
+for f in $merged; do
+  merge "$f" "$HOME/.$f"
+done
+
+# Codex and Grok read ~/.agents/skills. Claude gets one symlink per skill into
+# it. Cursor gets real copies, because it skips a symlinked skill.
+# A skill folder of the same name is replaced; other skills are left alone.
+for dir in "$repo"/agents/skills/*/ "$repo"/agents/my-skills/*/; do
+  name="$(basename "$dir")"
+  for home in "$HOME/.agents/skills" "$HOME/.cursor/skills"; do
+    [[ -n "$dry" ]] || mkdir -p "$home/$name"
+    rsync -a ${dry:+"$dry"} --delete --exclude .DS_Store "$dir" "$home/$name/"
+  done
+  link="$HOME/.claude/skills/$name"
+  if [[ -e "$link" && ! -L "$link" ]]; then
+    echo "install.sh: $link is a real folder; left alone" >&2
+  elif [[ -n "$dry" ]]; then
+    echo "link $link"
+  else
+    mkdir -p "$HOME/.claude/skills"
+    ln -sfn "../../.agents/skills/$name" "$link"
+  fi
+done

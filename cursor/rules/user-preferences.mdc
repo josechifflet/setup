@@ -1,0 +1,29 @@
+---
+description: Global user preferences
+alwaysApply: true
+---
+
+# User Preferences
+
+1. Implement first. Lint, format, typecheck, test and build run once at the end, never between edits, unless the user asked for TDD, the check is the task, or a plan phase names it.
+2. Scope a check to the files you changed. A whole suite only when the user says so, or the change touches what every path reads. Name what you ran. Run checks in the main session, never a subagent.
+3. Never use a skill unless the user asks for it.
+4. ASD-STE100 Simplified Technical English. Answer in English.
+5. Reply format to the user: first line is an action, or what you need from the user when work waits on them; number the steps; restate position each turn; one topic; cap a list at 5. Drop this when the reader asks for an explanation, a destructive action is near, debugging has stalled, or a rule conflicts.
+6. Comments: why, not how, and only on code you change. Earn one: a business rule, a hazard, a contract. Never restate the code.
+7. Do not write a report unless asked. Asked: ask where, then 50 lines. `#` / `-` / `1.` / fences. No table, no nested list. Never wrap to a column.
+8. Git read-only (`status`, `diff`, `log`, `show`) any time. Every write needs this session's ask; one ask covers a run of work. Never propose a PR, a branch, a split or a workflow. Start branch = end branch; asked for another, make it and name it.
+9. Destructive git is denied (`reset`, `clean -f`, `restore`, `stash`, `rebase`, `commit --amend`, `rm`, `gc`, `prune`, `reflog expire`, `update-ref`, force/delete/rename `branch`, `checkout --` / `-f` / `-B`, `switch -f` / `-C`, `worktree remove` / `prune`). Report the refusal. Do not hunt a spelling. `git` only — never report `gh` as denied.
+10. Allowed once asked: `commit`, `push` including force, `clean -n`, `branch` to list or create, `checkout`/`switch` onto a branch, `wt`, `isolation: "worktree"`. Conventional Commits: `type(scope): summary`. No "Generated with" or "Co-Authored-By" trailer.
+11. When a step does not need the user, continue. Put status in the same message as the next action. Stop to ask only when you cannot continue without the user, or before a destructive step. Deleting a finished plan file is not destructive.
+
+# Subagents (main session only)
+
+1. Default: do the work here. Delegate reading, not deciding; `orchestrator` and `planner` decide only inside what you hand them.
+2. Delegate when grounding needs more than three file reads, when the output is long and you want only the summary, or when two or more pieces can run at once on separate files. Pieces that can only run in sequence are one piece. When those conditions hold, spawn `explorer` or `researcher`, or hand a write split to `orchestrator` this turn.
+3. Keep here: a one-file edit, edits whose exact text you already wrote, a reviewer's fixes, a lookup you can grep, and any git write. A read-only map with no write split is `explorer`, not `orchestrator`. A question the repo cannot answer, such as vendor docs, release notes or a library API, is `researcher`.
+4. Only you decide to hand work to `orchestrator`; no subagent spawns it. Hand it a write split; it plans, decides its own ambiguities, runs one wave of two to four `explorer`, `researcher` and `worker` agents, and returns. One writer per file. Worker briefs are exact orders (`OWNS`/`NOT`/`CHANGE`/`PROOF`/`RETURN`), not goals. Read what came back, then hand over the next wave. A hand-off carries the request, the session identifier, the user's decisions, your `DECIDE:` answers and `ASSUMED:` corrections, and the last `PLAN:`, `FOUND:` and plan `PATH:`; the orchestrator has none of this conversation.
+5. Judge the returned files, not the report. Treat an `UNCONFIRMED:` line as unknown. After a wave that wrote code or config in more than one file, spawn `reviewer` on the diff and fix its findings here; review once more only when the fixes span more than one file.
+6. Answer a `DECIDE:` fork, or ask the user when the choice is theirs. Correct a wrong `ASSUMED:` line. Re-brief a wrong brief once in the same five slots, then finish here what comes back undone.
+7. Spawn `planner` when the work has two or more stages that must each land and pass before the next, or will likely outlast this context window. When in doubt, skip it. Work the plan's `Next:` phase under its `Rules:` line, hand a phase that splits into parallel writes to `orchestrator`, and send a BLOCKED plan back to `planner`. On `NO PLAN:`, do the work without one. Name the plan path in your status and keep going. Carry the plan to its end without the user. Run every check yourself through the repo's commands, a CLI or MCP tool, or agent-browser; hardware gets an emulator, a simulator or an injected fault. Stop for the user only for a git write, a login or access no tool has, or a step the user explicitly asked to own.
+8. A plan lives at `~/.local/state/plans/<repo>/<slug>-<session>.md`, where `<session>` is this conversation's session identifier. After compaction, reread the plan this conversation names, else the one in this repo's folder that ends in this session identifier. In a new session, list this repo's folder and ask which when there are several.

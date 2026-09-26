@@ -1,0 +1,155 @@
+// opencode configuration — source for ~/.config/opencode/opencode.jsonc
+// (install.sh copies it).
+//
+// ~/.opencode/ is the vendor installer's own tree (bin/, node_modules/) and is
+// not a config home; opencode resolves its global config under
+// ~/.config/opencode/ and probes opencode.json before opencode.jsonc, so this
+// repo ships only the .jsonc half and a stray .json would silently win.
+//
+// Runtime state (auth.json, the session database, snapshots) lives under
+// ~/.local/share/opencode and is never managed by this repo. Secrets never go
+// here: `opencode auth login` owns them.
+//
+// Config reference: https://opencode.ai/docs/config
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // Root defaults do not retain variants, so the primary agent carries the
+  // high variant for new sessions, chosen for speed.
+  "model": "opencode-go/glm-5.3-flash",
+  "agent": {
+    "build": {
+      "model": "opencode-go/glm-5.3-flash",
+      "variant": "high"
+    }
+  },
+
+  // Homebrew owns the binary (anomalyco/tap/opencode), so the
+  // built-in updater must stay out of it — a self-replaced binary under
+  // /opt/homebrew is drift `brew upgrade` then fights.
+  "autoupdate": false,
+
+  // Privacy posture, mirroring codex telemetry-off and grok [features].
+  // "disabled" refuses `/share` outright rather than merely not sharing by
+  // default: a shared session uploads the whole transcript to opencode.ai.
+  "share": "disabled",
+
+  // Rules come from ~/.config/opencode/AGENTS.md, which opencode reads before
+  // it falls back to ~/.claude/CLAUDE.md. Edit opencode/AGENTS.md.
+
+  // One registration per host, the same posture as Cursor's mcp.json: opencode
+  // ships no paper or context7 plugin, so this block is the only registration
+  // for either. Both are remote streamable-HTTP, so no npx/node process per
+  // session.
+  //
+  // `{env:VAR}` is opencode's own interpolation, resolved at config load — the
+  // key stays out of this repo and comes from the environment. Without it
+  // context7 still answers, on the anonymous rate limit.
+  //
+  // Paper answers on loopback only while Paper Desktop has a file open; when it
+  // is closed the cost is one tool-fetch timeout per session (5000 ms default),
+  // not a failed start.
+  "mcp": {
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "enabled": true,
+      "headers": {
+        "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}"
+      }
+    },
+    "paper": {
+      "type": "remote",
+      "url": "http://127.0.0.1:29979/mcp",
+      "enabled": true
+    }
+  },
+
+  "permission": {
+    // Edits go through, shell commands ask: the same posture as Claude
+    // acceptEdits, codex on-request and grok `ask`. The bash denies below
+    // still hold — opencode takes the LAST matching rule, and they are last.
+    "edit": "allow",
+    "webfetch": "allow",
+    // Plans live outside every repo so no commit can include them.
+    "external_directory": {
+      "*": "ask",
+      "~/.local/state/plans/**": "allow"
+    },
+
+    // opencode has no PreToolUse hook a shell script can register, so unlike
+    // Claude, Codex and Grok this list is the whole of its enforcement. It is
+    // matched against each command of a compound line, not just the line.
+    "bash": {
+      "*": "ask",
+      "git status": "allow",
+      "git diff *": "allow",
+      "git log *": "allow",
+      "git show *": "allow",
+      "git add *": "allow",
+      "shellcheck *": "allow",
+      "shfmt *": "allow",
+      "zsh -n *": "allow",
+      "git reset*": "deny",
+      "git -* reset*": "deny",
+      "git clean -*f*": "deny",
+      "git -* clean -*f*": "deny",
+      "git branch -d *": "deny",
+      "git -* branch -d *": "deny",
+      "git branch -D *": "deny",
+      "git -* branch -D *": "deny",
+      "git branch -m *": "deny",
+      "git -* branch -m *": "deny",
+      "git branch -M *": "deny",
+      "git -* branch -M *": "deny",
+      "git branch -f *": "deny",
+      "git -* branch -f *": "deny",
+      "git branch --delete*": "deny",
+      "git -* branch --delete*": "deny",
+      "git branch --move*": "deny",
+      "git -* branch --move*": "deny",
+      "git branch --force*": "deny",
+      "git -* branch --force*": "deny",
+      "git checkout -- *": "deny",
+      "git -* checkout -- *": "deny",
+      "git checkout * -- *": "deny",
+      "git -* checkout * -- *": "deny",
+      "git checkout -f*": "deny",
+      "git -* checkout -f*": "deny",
+      "git checkout -B *": "deny",
+      "git -* checkout -B *": "deny",
+      "git checkout --force*": "deny",
+      "git -* checkout --force*": "deny",
+      "git restore*": "deny",
+      "git -* restore*": "deny",
+      "git stash*": "deny",
+      "git -* stash*": "deny",
+      "git switch -f*": "deny",
+      "git -* switch -f*": "deny",
+      "git switch -C *": "deny",
+      "git -* switch -C *": "deny",
+      "git switch --force*": "deny",
+      "git -* switch --force*": "deny",
+      "git switch --discard-changes*": "deny",
+      "git -* switch --discard-changes*": "deny",
+      "git rebase*": "deny",
+      "git -* rebase*": "deny",
+      "git commit --amend*": "deny",
+      "git -* commit --amend*": "deny",
+      "git rm*": "deny",
+      "git -* rm*": "deny",
+      "git gc*": "deny",
+      "git -* gc*": "deny",
+      "git prune*": "deny",
+      "git -* prune*": "deny",
+      "git reflog expire*": "deny",
+      "git -* reflog expire*": "deny",
+      "git update-ref*": "deny",
+      "git -* update-ref*": "deny",
+      "git worktree remove*": "deny",
+      "git -* worktree remove*": "deny",
+      "git worktree prune*": "deny",
+      "git -* worktree prune*": "deny"
+    }
+  }
+}

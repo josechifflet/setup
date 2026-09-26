@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "permissions": {
+    "allow": [],
+    "deny": [
+      "Shell(git:reset*)",
+      "Shell(git:clean -*f*)",
+      "Shell(git:branch -d *)",
+      "Shell(git:branch -D *)",
+      "Shell(git:branch -m *)",
+      "Shell(git:branch -M *)",
+      "Shell(git:branch -f *)",
+      "Shell(git:branch --delete*)",
+      "Shell(git:branch --move*)",
+      "Shell(git:branch --force*)",
+      "Shell(git:checkout -- *)",
+      "Shell(git:checkout * -- *)",
+      "Shell(git:checkout -f*)",
+      "Shell(git:checkout -B *)",
+      "Shell(git:checkout --force*)",
+      "Shell(git:restore*)",
+      "Shell(git:stash*)",
+      "Shell(git:switch -f*)",
+      "Shell(git:switch -C *)",
+      "Shell(git:switch --force*)",
+      "Shell(git:switch --discard-changes*)",
+      "Shell(git:rebase*)",
+      "Shell(git:commit --amend*)",
+      "Shell(git:rm*)",
+      "Shell(git:gc*)",
+      "Shell(git:prune*)",
+      "Shell(git:reflog expire*)",
+      "Shell(git:update-ref*)",
+      "Shell(git:worktree remove*)",
+      "Shell(git:worktree prune*)"
+    ]
+  }
+}

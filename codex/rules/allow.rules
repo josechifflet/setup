@@ -1,0 +1,69 @@
+# No rule for `just`: these rules are global, an allow rule runs its command
+# outside the sandbox with no prompt, and any repo's justfile can hold anything.
+
+# No rule for `chezmoi diff` or `chezmoi status` either: both render templates,
+# and a template can run a command through `output` from any --source.
+
+prefix_rule(
+    pattern = ["git", "status"],
+    decision = "allow",
+    justification = "Read-only inspection.",
+    match = ["git status --short"],
+    not_match = ["git stash"],
+)
+
+prefix_rule(
+    pattern = ["git", "diff"],
+    decision = "allow",
+    justification = "Read-only inspection.",
+    match = ["git diff --stat"],
+    not_match = [],
+)
+
+prefix_rule(
+    pattern = ["git", "log"],
+    decision = "allow",
+    justification = "Read-only inspection.",
+    match = ["git log --oneline -5"],
+    not_match = [],
+)
+
+prefix_rule(
+    pattern = ["git", "show"],
+    decision = "allow",
+    justification = "Read-only inspection.",
+    match = ["git show HEAD"],
+    not_match = [],
+)
+
+prefix_rule(
+    pattern = ["git", "add"],
+    decision = "allow",
+    justification = "Staging is not destructive, and the pre-commit hook stages generated output.",
+    match = ["git add codex/config.toml"],
+    not_match = ["git rm codex/config.toml"],
+)
+
+prefix_rule(
+    pattern = ["shellcheck"],
+    decision = "allow",
+    justification = "A linter `just lint` runs; an agent checking its own work should not be interrupted.",
+    match = ["shellcheck scripts/scan-secrets"],
+    not_match = [],
+)
+
+prefix_rule(
+    pattern = ["shfmt"],
+    decision = "allow",
+    justification = "A formatter `just lint` runs in check mode.",
+    match = ["shfmt -d scripts/scan-secrets"],
+    not_match = [],
+)
+
+prefix_rule(
+    pattern = ["zsh", "-n"],
+    decision = "allow",
+    justification = "Parses a script without running it; `zsh -c` is a different thing entirely.",
+    match = ["zsh -n dot_zshrc"],
+    not_match = ["zsh -lc dot_zshrc"],
+)

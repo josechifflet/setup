@@ -1,0 +1,112 @@
+# The enforced half of ~/.codex/config.toml. install.sh merges these keys over
+# the live file; every key Codex wrote itself survives.
+#
+# A whole-file copy would break Codex. `codex plugin install` and the ChatGPT
+# desktop app append [plugins."…"], [marketplaces.*] and [mcp_servers.*]
+# sections at runtime, and a copy deletes them. Codex has no config.d and no
+# include: `config.local.toml` appears nowhere in its binary.
+#
+# Keys not named here, the context7 API-key header among them, can go into
+# ~/.codex/config.toml by hand and stay there.
+#
+# install.sh expands @HOME@, because Codex expands neither ~ nor $HOME here.
+
+# Prompt before leaving the sandbox; the sandbox keeps writes in the workspace
+# and network off. Full autonomy is one session away: `codex --yolo`.
+approval_policy = "on-request"
+model = "gpt-6-astra"
+model_reasoning_effort = "high"
+sandbox_mode = "workspace-write"
+service_tier = "default"
+personality = "pragmatic"
+
+# Plans live outside every repo (AGENTS.md), so the sandbox must let the main
+# session write them. Network stays off; a command that needs it asks.
+[sandbox_workspace_write]
+writable_roots = ["@HOME@/.local/state/plans"]
+
+# Pin unnamed spawns so an Astra parent does not raise every subagent's usage.
+# Cap is 6: the orchestrator is itself a spawned thread, then a planner it may spawn first, then a wave of up to four.
+[agents]
+enabled = true
+default_subagent_model = "gpt-6-sol"
+default_subagent_reasoning_effort = "medium"
+max_concurrent_threads_per_session = 6
+
+[features]
+hooks = true
+
+# timeout is 10 rather than 5 because a hook that times out is Failed, not
+# Blocked: Codex lets the command through, so the guard fails open and the
+# generous bound is the safe one.
+[[hooks.PreToolUse]]
+matcher = "^Bash$"
+
+[[hooks.PreToolUse.hooks]]
+command = '"${CODEX_HOME:-$HOME/.codex}/hooks/block-dangerous-git.sh"'
+statusMessage = "Checking git command safety"
+timeout = 10
+type = "command"
+
+# Remote streamable-HTTP endpoint: no local npx/node process per session, and
+# sidesteps codex's stdio MCP process leak (openai/codex#26984).
+#
+# The API key header goes straight into ~/.codex/config.toml as
+# [mcp_servers.context7.http_headers], untracked, and the merge leaves it alone.
+#
+# Do not also install a context7 plugin or stdio MCP — this is the only Codex
+# registration. Claude, Cursor and Grok use their own (not this file).
+[mcp_servers.context7]
+url = "https://mcp.context7.com/mcp"
+
+# Remote, OAuth-authenticated (tokens stored by codex outside config.toml).
+[mcp_servers.sentry]
+url = "https://mcp.sentry.dev/mcp"
+
+# Paper Desktop MCP: plugin only — never also [mcp_servers.paper].
+# Install it with `codex plugin install paper-desktop@paper`. Declaring the
+# plugin here would enforce one half of a pair whose other half, the
+# downloaded package, this repo does not ship.
+
+# ChatGPT Apps connectors (the built-in codex_apps server); github stays on.
+[apps.google_drive]
+enabled = false
+
+[apps.figma]
+enabled = false
+
+[desktop]
+appearanceDarkCodeThemeId = "dracula"
+appearanceLightCodeThemeId = "vscode-plus"
+
+[desktop.appearanceDarkChromeTheme]
+accent = "#ff79c6"
+# What Codex writes for a hand-picked accent. Without it a fresh machine gets
+# the theme's own accent instead of this one.
+accentSource = "custom"
+contrast = 60
+ink = "#f8f8f2"
+opaqueWindows = true
+surface = "#282a36"
+
+[desktop.appearanceDarkChromeTheme.fonts]
+ui = "Inter"
+
+[desktop.appearanceDarkChromeTheme.semanticColors]
+diffAdded = "#50fa7b"
+diffRemoved = "#ff5555"
+skill = "#ff79c6"
+
+[desktop.appearanceLightChromeTheme]
+accent = "#007acc"
+contrast = 45
+ink = "#000000"
+opaqueWindows = false
+surface = "#ffffff"
+
+[desktop.appearanceLightChromeTheme.fonts]
+
+[desktop.appearanceLightChromeTheme.semanticColors]
+diffAdded = "#008000"
+diffRemoved = "#ee0000"
+skill = "#0000ff"
