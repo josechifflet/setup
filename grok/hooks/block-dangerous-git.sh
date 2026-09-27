@@ -1,522 +1,405 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# [PERF] This hook runs before every Bash call and a heredoc body travels inside
-# the command string, so the cost has to stay flat in the size of that body. Two
-# literal gates and one fixed-length pipeline hold it there. Every number here is
-# measured on bash 3.2 for darwin/arm64, which is what `/usr/bin/env bash` finds
-# on a stock machine.
+# Agents read git and may add and commit; the user runs every other git write,
+# and no agent or subagent leaves the branch or checkout its session started
+# in. That rule lives in each home's CLAUDE.md or AGENTS.md, and this hook is
+# the fast backstop behind it. It allows a git call only when its subcommand is
+# a known read, `add`, or `commit` without --amend. It also refuses `wt` and
+# the `gh` commands that check out, merge or sync a branch. Every refusal tells
+# the agent why and what to do next, because a bare denial reads as a hurdle to
+# route around. The text states facts, not orders: Claude can treat an order
+# from outside the conversation as prompt injection and surface it instead of
+# acting on it. It parses laxly on purpose: no alias, variable or $(...) word is resolved, text piped
+# or here-string fed into a shell is not read, and a git word split by quotes
+# never reaches the parser, so `$G push`, `echo git push | sh`, `g''it push` or
+# `$(echo git) push` passes. That trade keeps jq and shfmt off the path.
 #
-# `$(</dev/stdin)` and not `read -r -d ''`: the builtin forks nothing but reads
-# a pipe one byte at a time, ~0.40ms/KB, where this form reads it in blocks and
-# still forks no `cat` — 85ms against 10ms on a 240KB payload, and within 0.4ms
-# of the builtin on a small one. The `cat` fallback is for a host with no
-# /dev/stdin, where the bare form would fail and the hook would fail open.
+# [PERF] bash 3.2 and BWK awk on darwin/arm64: ~4ms with no `git`, `gh pr`,
+# `gh repo` or `wt ` in the command, no exec at all; ~7ms with one, a single awk; ~32ms for a 245KB
+# heredoc. The shfmt and jq version this replaced took ~23ms and ~78ms.
+
+# [PERF] Byte semantics. In a UTF-8 locale bash 3.2 counts and matches by
+# character, and one `${x%%y*}` on a 245KB payload took 9s.
+LC_ALL=C
+
+# `$(</dev/stdin)` reads in blocks with no `cat`. The fallback covers a host
+# with no /dev/stdin, where the bare form would fail open.
 { PAYLOAD=$(< /dev/stdin); } 2> /dev/null || PAYLOAD=$(cat)
 
-# A command needs the parser when it names git or a guarded verb, or holds the
-# quoting and expansion that can spell one at run time (`g''it`, `$'\x67it'`,
-# `re$()set`). JSON escapes a double quote in the command as \", so the
-# backslash covers it here. A brace counts only when no quote or brace follows
-# it, since every JSON object opens with `{"`. Clearing the rest here costs no
-# exec, jq included.
-case "$PAYLOAD" in
-  *git* | *reset* | *clean* | *restore* | *stash* | *rebase* | *rm* | *gc* | *prune* | *filter-* | *update-ref* | *reflog* | *worktree* | *amend* | *\\* | *\$* | *\`* | *\'* | *\** | *\?* | *\[* | *\{[!\"\}]*) ;;
+# Grok reads the decision from stdout. $1 never holds a quote or a backslash:
+# awk strips a subcommand to [A-Za-z0-9._@/+$ -] before it names one, and the
+# rest is fixed text.
+block() {
+  printf '{"decision": "deny", "reason": "BLOCKED: %s"}\n' "$1"
+  exit 2
+}
+
+case $PAYLOAD in
+  *git* | *'gh pr'* | *'gh repo'* | *'wt '*) ;;
   *) exit 0 ;;
 esac
 
-# [SECURITY] Fail closed: with jq missing a git command is refused rather than
-# silently allowed through. It sits after the gate above because a payload with
-# no `git` in it has already been cleared, and refusing those for a missing
-# dependency would block the whole session over a command jq never had to see.
-if ! command -v jq > /dev/null 2>&1; then
-  echo '{"decision": "deny", "reason": "jq is required for hook evaluation but not found"}'
-  echo "BLOCKED: jq is required for hook evaluation but not found." >&2
-  exit 2
-fi
-
-# Under set -e a jq parse error would exit with jq's own status, which Grok
-# does not read as a block. An unreadable command is not a safe command.
-if ! COMMAND=$(jq -r ".toolInput.command // .tool_input.command // empty" <<< "$PAYLOAD"); then
-  echo '{"decision": "deny", "reason": "hook could not parse its input payload"}'
-  echo "BLOCKED: hook could not parse its input payload." >&2
-  exit 2
-fi
-
-# The payload carries cwd, env and transcript paths, so these can appear in it
-# while the command itself is innocent. Re-check the extracted command before
-# paying for the scan below.
-case "$COMMAND" in
-  *git* | *reset* | *clean* | *restore* | *stash* | *rebase* | *rm* | *gc* | *prune* | *filter-* | *update-ref* | *reflog* | *worktree* | *amend* | *\\* | *\$* | *\`* | *\'* | *\"* | *\** | *\?* | *\[* | *\{* | *\}*) ;;
+# JSON escapes every quote inside a string value, so only the real key can
+# match here. The value is a JSON string on one line whatever the layout, so
+# awk reads it as the first record and ignores the rest.
+case $PAYLOAD in
+  *\"command\"*) REST=${PAYLOAD#*\"command\"} ;;
+  *) block "the git guard found no command in its payload and cannot check this call. Rules set by the user allow agents only git reads, add and commit." ;;
+esac
+case $REST in
+  *git* | *'gh pr'* | *'gh repo'* | *'wt '*) ;;
   *) exit 0 ;;
 esac
 
-# Verbs a dynamic command word must not reach (`$G reset --hard`), and the verbs
-# the no-parser fallback refuses. One list, so jq and the fallback cannot drift.
-GUARDED_VERBS="reset clean restore stash rebase rm gc prune filter-branch filter-repo update-ref reflog worktree"
+# The awk program must hold no apostrophe: it sits in single quotes and gets
+# one as `q`.
+# shellcheck disable=SC2016  # awk source, not shell
+GUARD_AWK='
+# Reads the JSON string after the "command" key and prints why the command is
+# refused, or nothing. The tokenizer knows quotes, $( ), backticks, subshells,
+# redirections, comments and heredoc bodies, so a git word inside a string, a
+# comment or a heredoc is no call. A backslash is parked as \034 before the
+# JSON escapes are undone, so every backslash left in the command is \034.
+BEGIN {
+  BS = "\034"; DQ = "[\"\034`$]"; CX = "[\"\034`$()<]"; CAP = 65536
+  n = split("status diff log show blame annotate grep shortlog describe rev-parse rev-list ls-files ls-tree ls-remote cat-file for-each-ref show-ref show-branch merge-base name-rev whatchanged cherry range-diff count-objects check-ignore check-attr check-ref-format check-mailmap var help version verify-commit verify-tag diff-tree diff-files diff-index", t, " ")
+  for (k = 1; k <= n; k++) READ[t[k]] = 1
+  n = split("command builtin exec nice nohup time timeout gtimeout doas sudo env xargs stdbuf setsid noglob nocorrect caffeinate if then do else elif while until ! { coproc", t, " ")
+  for (k = 1; k <= n; k++) WRAP[t[k]] = 1
+  n = split("sh bash zsh dash ksh mksh", t, " ")
+  for (k = 1; k <= n; k++) SHELLS[t[k]] = 1
+  n = split("\" $ ` ( ) ; & | < > #", t, " ")
+  for (k = 1; k <= n; k++) SP[t[k]] = 1
+  SP[" "] = 1; SP["\t"] = 1; SP[q] = 1; SP[BS] = 1
+  # What a refused command would do, and what the agent does instead.
+  MOVE = "changes the branch or checkout this session works in. Rules set by the user keep every agent and subagent on the branch and checkout the session started in, plans included. Only the user changes branches or worktrees. The work continues on this branch. If it cannot, the next step is to hand the user the exact command."
+  REWRITE = "rewrites history or discards work. Rules set by the user allow agents only git reads, add and commit, and leave every other git write to the user. The next step is to hand the user the exact command and continue without it."
+  REMOTE = "talks to a remote. Rules set by the user leave every push, fetch and pull to the user. The next step is to hand the user the exact command and continue without it."
+  OTHER = "is not a git read, add or commit. Rules set by the user leave every other git write to the user. The next step is to hand the user the exact command and continue without it."
+  TAIL = " The same rules forbid reaching it through another spelling, a script, an alias, wt, a worktree or a subagent."
+  n = split("switch checkout worktree branch bisect symbolic-ref", t, " ")
+  for (k = 1; k <= n; k++) KIND[t[k]] = MOVE
+  n = split("commit rebase reset merge cherry-pick revert restore stash clean rm am update-ref gc prune reflog replace filter-branch", t, " ")
+  for (k = 1; k <= n; k++) KIND[t[k]] = REWRITE
+  n = split("push fetch pull clone", t, " ")
+  for (k = 1; k <= n; k++) KIND[t[k]] = REMOTE
+  # Listing forms. A positional argument is a name to create unless a flag
+  # puts the command in list mode.
+  BR_S = "^-[ailqrv]+$"
+  BR_L = "^--(list|all|remotes|verbose|quiet|contains|no-contains|merged|no-merged|points-at|sort|format|color|no-color|column|no-column|abbrev|no-abbrev|show-current|ignore-case|omit-empty)(=|$)"
+  BR_LS = "^(-[ailqrv]*[alr][ailqrv]*|--(list|all|remotes|contains|no-contains|merged|no-merged|points-at)(=.*)?)$"
+  TG_S = "^-[ilnv0-9]+$"
+  TG_L = "^--(list|contains|no-contains|merged|no-merged|points-at|sort|format|color|no-color|column|no-column|ignore-case|omit-empty|verify)(=|$)"
+  TG_LS = "^(-[ilnv0-9]*[lnv][ilnv0-9]*|--(list|contains|no-contains|merged|no-merged|points-at|verify)(=.*)?)$"
+  reset()
+}
+NR == 1 {
+  s = $0
+  sub(/^[ \t\r:]*/, "", s)
+  if (substr(s, 1, 1) != "\"") { print "the git guard found a command that is not a string and cannot check this call. Rules set by the user allow agents only git reads, add and commit."; done = 1; next }
+  s = substr(s, 2)
+  # [PERF] Each gsub costs ~3ms on a 245KB command, so one runs only when
+  # index finds its target, and the lines split on the escaped \n directly.
+  if (index(s, "\\\\")) gsub(/\\\\/, BS, s)
+  if (index(s, "\\\"")) gsub(/\\"/, "\035", s)
+  p = index(s, "\"")
+  if (p) s = substr(s, 1, p - 1)
+  if (!hot(s)) { done = 1; next }
+  if (index(s, "\\t")) gsub(/\\t/, "\t", s)
+  if (index(s, "\\r")) gsub(/\\r/, "", s)
+  if (index(s, "\\/")) gsub(/\\\//, "/", s)
+  if (index(s, "\035")) gsub(/\035/, "\"", s)
+  # Encoders that escape HTML-significant bytes would otherwise hide && and >.
+  if (index(s, "\\u")) {
+    gsub(/\\u0026/, "\\&", s); gsub(/\\u003[cC]/, "<", s); gsub(/\\u003[eE]/, ">", s)
+    gsub(/\\u0027/, q, s); gsub(/\\u0022/, "\"", s)
+  }
+  m = split(s, L, "\\\\n")
+  for (li = 1; li <= m; li++) scan(L[li])
+}
+END {
+  if (done) exit
+  finish()
+  while (qi < qn) {
+    reset()
+    m = split(Q[++qi], L, "\n")
+    for (li = 1; li <= m; li++) scan(L[li])
+    finish()
+  }
+}
 
-# An alias defined by the call's own environment (`GIT_CONFIG_COUNT=1 …`,
-# `HOME=/tmp/x`) is invisible to the lookup below, so an unknown subcommand in
-# such a command is refused rather than looked up in the wrong config. A `cd`
-# moves the repo the lookup would read, so it taints the same way.
-# `*HOME=*` also covers XDG_CONFIG_HOME.
-TAINT=false
-case "$COMMAND" in
-  *GIT_*=* | *HOME=* | *"cd "* | *pushd*) TAINT=true ;;
-esac
+function reset() {
+  d = 0; o = 0; K[0] = "C"; CL[0] = ""
+  NW[0] = 0; CW[0] = ""; HW[0] = 0; LN[0] = 0; RD[0] = 0
+  nhd = 0; body = 0; cont = 0
+}
+# The context stack: C is a command list (top level, $( ), ( ) or backticks),
+# S a single quote, A a $-single quote, D a double quote. Words belong to the
+# nearest C level, o.
+function push(kind, closer) {
+  d++; K[d] = kind; CL[d] = closer
+  if (kind == "C") { NW[d] = 0; CW[d] = ""; HW[d] = 0; LN[d] = 0; RD[d] = 0; o = d }
+}
+function pop() {
+  if (d) d--
+  o = K[d] == "C" ? d : d - 1
+}
+function addw(s) {
+  HW[o] = 1
+  if (LN[o] < CAP) { CW[o] = CW[o] s; LN[o] += length(s) }
+}
+function dropword() { CW[o] = ""; HW[o] = 0; LN[o] = 0 }
+function endword() {
+  if (!HW[o]) return
+  if (RD[o]) RD[o] = 0
+  else W[o, ++NW[o]] = CW[o]
+  dropword()
+}
+function endseg() {
+  endword()
+  if (NW[o]) run(o, 1, NW[o])
+  NW[o] = 0; RD[o] = 0; seg++
+}
+function finish() {
+  while (d) { if (K[d] == "C") endseg(); pop() }
+  endseg()
+}
+# Text that every command this guard checks contains. gh takes --repo after
+# its group, so `gh pr` and `gh repo` stay adjacent. Narrow on purpose: bare
+# gh or wt would send every command that says "through" or "newt" to the walk.
+function hot(x) { return index(x, "git") || index(x, "gh pr") || index(x, "gh repo") || index(x, "wt ") }
+function enqueue(s) { if (hot(s) && qn < 16) Q[++qn] = s }
+function deny(s, why) {
+  gsub(/[^A-Za-z0-9._@\/+$ -]/, "", s)
+  print "`" s "` " why TAIL
+  done = 1
+  exit
+}
 
-# [SECURITY] The old guard deleted quoted spans and read only the first word of
-# each segment, so `git "reset"`, `sh -c '...'` and `$G reset` walked past it.
-# shfmt parses the command into a syntax tree and jq visits every CallExpr at
-# any depth, which is what reaches subshells, blocks, pipelines, `$(...)`,
-# backticks, loops and functions without listing them. One shfmt and one jq per
-# parse keeps the cost flat under Grok's 5s and Codex's 10s timeouts, where a
-# timeout is a fail-open.
-#
-# jq prints one record per line: `B<TAB>rule` blocks, `S<TAB>json-text` is shell
-# text to parse again, `A<TAB>json-args<TAB>name<TAB>json-dirs` asks the shell
-# for a config alias, the only lookup jq cannot do itself.
-# shellcheck disable=SC2016  # the jq program is jq source, not shell
-JQ_PROG='
-# Unquoted backslashes only escape, so `\git` runs git.
-def unesc: gsub("\\\\(?<c>.)"; "\(.c)");
-# Inside double quotes bash drops a backslash only before these four, and shfmt
-# keeps it in the Lit Value, so `git \"reset\"` would not read as reset.
-def dqunesc: gsub("\\\\(?<c>[\"\\\\$`])"; "\(.c)");
-def hexn: ascii_downcase | explode | map(if . >= 97 then . - 87 else . - 48 end)
-  | reduce .[] as $d (0; . * 16 + $d);
-def octn: explode | map(. - 48) | reduce .[] as $d (0; . * 8 + $d);
-# ANSI-C quoting (dollar sign, single quote) decoded the way bash does, so an
-# escaped \x72eset reads as reset. An escape bash does not know keeps its
-# backslash, as bash keeps it.
-def ansic:
-  gsub("\\\\(?<e>x[0-9A-Fa-f]{1,2}|u[0-9A-Fa-f]{1,4}|U[0-9A-Fa-f]{1,8}|[0-7]{1,3}|c.|.)";
-    .e as $e
-    | if ($e | test("^[xuU]")) then [$e[1:] | hexn] | implode
-      elif ($e | test("^[0-7]")) then [$e | octn] | implode
-      elif ($e | startswith("c")) then [($e[1:2] | explode[0]) % 32] | implode
-      else ({"a": "\u0007", "b": "\b", "e": "\u001b", "E": "\u001b", "f": "\f",
-        "n": "\n", "r": "\r", "t": "\t", "v": "\u000b", "\\": "\\", "\u0027": "\u0027",
-        "\"": "\"", "?": "?"}[$e] // ("\\" + $e)) end);
-# Unquoted brace and glob text expands at run time (`git {reset,} --hard`), so a
-# Lit holding any of it is not a literal. A lone `[` is the test command.
-def expands: . != "[" and (gsub("\\\\."; "") | test("[{}*?\\[]"));
-# A word is literal only when every part is; anything else (an expansion, a
-# substitution) is null, which the rules below treat as unknown.
-def word:
-  reduce (.Parts // [])[] as $p ("";
-    if . == null then null
-    elif $p.Type == "Lit" then (if ($p.Value | expands) then null else . + ($p.Value | unesc) end)
-    elif $p.Type == "SglQuoted" then . + (if $p.Dollar then $p.Value | ansic else $p.Value end)
-    elif $p.Type == "DblQuoted" and all(($p.Parts // [])[]; .Type == "Lit")
-    then . + ([($p.Parts // [])[].Value | dqunesc] | join(""))
-    else null end);
-# The literal text of a word that is not literal, expansions dropped, so
-# `g$()it` still shows git and `--am{end,}` still shows a flag.
-def litpieces:
-  [(.Parts // [])[] | if .Type == "Lit" or .Type == "SglQuoted" then .Value
-    elif .Type == "DblQuoted" then [(.Parts // [])[] | select(.Type == "Lit") | .Value] | join("")
-    else "" end] | join("");
-# An unquoted expansion splits into any number of words, flags included.
-def unquotedexp:
-  any((.Parts // [])[]; .Type != "Lit" and .Type != "SglQuoted" and .Type != "DblQuoted");
-def globword: any((.Parts // [])[]; .Type == "Lit" and (.Value | expands));
-# A non-literal word that starts like an option, or an unquoted expansion that
-# can split into one, could be any option.
-def dyn: "\u0000dyn";
-def wordx: word as $w
-  | if $w != null then $w
-    elif (litpieces | startswith("-")) or unquotedexp then dyn else null end;
-# A guarded verb standing alone in text, so `re$()set` matches and `format` does not.
-def verbre: "(^|[^A-Za-z-])(" + ($guarded | split(" ") | join("|")) + ")([^A-Za-z-]|$)";
-# Shell text for a script word, so `-c "cd $HOME && git reset --hard"` is still
-# parsed: an expansion becomes a placeholder word instead of hiding the whole
-# script. $raw keeps a heredoc body as written, since its backslashes are not
-# word escapes.
-def script($raw):
-  [(.Parts // [])[] as $p
-   | if $p.Type == "Lit" then (if $raw then $p.Value else $p.Value | unesc end)
-     elif $p.Type == "SglQuoted" then (if $p.Dollar then $p.Value | ansic else $p.Value end)
-     elif $p.Type == "DblQuoted" then
-       [($p.Parts // [])[] | if .Type == "Lit" then .Value | dqunesc else "\"$_dyn\"" end]
-       | join("")
-     else "\"$_dyn\"" end]
-  | join("");
-def base: sub("^.*/"; "");
-def isguarded: . as $v | type == "string" and any($guarded | split(" ")[]; . == $v);
-# git accepts any unambiguous prefix of a long option, so `--forc` is --force.
-def longmatch($v; $e):
-  ($e | startswith("--")) and ($e | length) > 2 and ($v | type == "string")
-  and ($v | startswith("--")) and ($v | length) >= 3
-  and ($e | startswith($v | sub("=.*$"; "")));
-# Flags count anywhere in the arguments and inside clusters, so `-fdx` and
-# `-d -f` both carry the f.
-def hasflag($short; $exact):
-  any(.[]; . as $v | $v == dyn or ($v | type == "string" and (
-    ($short != "" and ($v | test("^-[A-Za-z]*[" + $short + "]")))
-    or any($exact[]; . == $v or longmatch($v; .)))));
-# The first positional argument: the dynamic marker when it is not literal, and
-# a separate marker when there is none, so a plain `git reflog` stays allowed.
-def firstpos:
-  first(.[] | if . == null then dyn else . end | select(. == dyn or (startswith("-") | not)))
-  // "\u0000none";
-# Values of options that take one are not flags: `-m "$msg"` is a message.
-def dropvals($re):
-  . as $a
-  | [range(0; length) as $i
-     | select(($i > 0 and ($a[$i - 1] | type == "string") and ($a[$i - 1] | test($re))) | not)
-     | $a[$i]];
-# Words after `--` are pathspecs, never flags.
-def beforedd: (indices("--")[0] // length) as $k | .[:$k];
-# For commit and clean a quoted expansion is one whole word that could still be
-# the flag, so every non-literal word counts.
-def strict: map(if . == null then dyn else . end);
-def shells: ["sh", "bash", "zsh", "dash", "ksh"];
-def wrappers: ["sudo", "doas", "env", "command", "exec", "nice", "nohup", "time",
-  "timeout", "stdbuf", "setsid"];
-# Builtins win over aliases in git, so only other names need an alias lookup.
-def builtins: ["add", "am", "apply", "archive", "bisect", "blame", "branch",
-  "bundle", "cat-file", "check-attr", "check-ignore", "checkout", "cherry",
-  "cherry-pick", "clean", "clone", "commit", "config", "count-objects",
-  "describe", "diff", "diff-files", "diff-index", "diff-tree", "difftool",
-  "fetch", "for-each-ref", "format-patch", "fsck", "gc", "grep", "hash-object",
-  "help", "init", "log", "ls-files", "ls-remote", "ls-tree", "maintenance",
-  "merge", "merge-base", "mergetool", "mv", "name-rev", "notes", "prune",
-  "pull", "push", "range-diff", "rebase", "reflog", "remote", "repack",
-  "replace", "reset", "restore", "rev-list", "rev-parse", "revert", "rm",
-  "shortlog", "show", "show-ref", "sparse-checkout", "stash", "status",
-  "submodule", "switch", "symbolic-ref", "tag", "update-index", "update-ref",
-  "var", "version", "whatchanged", "worktree"];
-def render: map(if . == null or . == dyn then "\"$_dyn\"" else @sh end) | join(" ");
-def verdict($sub):
-  # reset moves HEAD and can orphan commits; restore rewrites index or
-  # worktree; stash moves work where the user did not put it; rebase and the
-  # filters rewrite shared history; rm removes tracked files from the worktree;
-  # gc and prune delete the recovery path for a bad reset; update-ref moves refs
-  # beneath every other guard.
-  if any(["reset", "restore", "stash", "rebase", "rm", "gc", "prune",
-    "update-ref", "filter-branch", "filter-repo"][]; . == $sub) then "git " + $sub
-  # Only the force forms delete untracked files.
-  elif $sub == "clean"
-    and (beforedd | dropvals("^(-[A-Za-z]*e|--exclude)$") | strict | hasflag("f"; ["--force"]))
-  then "git clean --force"
-  # Creating and listing branches is additive; deleting, moving or forcing
-  # throws away a ref the user made.
-  elif $sub == "branch"
-    and (dropvals("^(-[A-Za-z]*[tu]|--(set-upstream-to|track|contains|no-contains|merged|no-merged|points-at|format|sort))$")
-      | hasflag("dDmMf"; ["--delete", "--move", "--force"]))
-  then "git branch --delete/--move/--force"
-  # A `--` or `.` pathspec and -f overwrite the worktree with no reflog; -B moves
-  # an existing branch. Plain checkout and -b are navigation.
-  elif $sub == "checkout"
-    and (dropvals("^(-[A-Za-z]*[bt]|--(orphan|track|conflict|pathspec-from-file))$")
-      | hasflag("fB"; ["--force", "--", "."]))
-  then "git checkout --force/-B/--/."
-  # Plain switch and -c refuse to lose work, so git guards them itself.
-  elif $sub == "switch"
-    and (dropvals("^(-[A-Za-z]*[ct]|--(create|orphan|track|conflict))$")
-      | hasflag("fC"; ["--force", "--discard-changes"]))
-  then "git switch --force/-C/--discard-changes"
-  elif $sub == "commit"
-    and (beforedd
-      | dropvals("^(-[A-Za-z]*[mFCct]|--(message|file|reuse-message|reedit-message|template|author|date|fixup|squash|trailer|cleanup|pathspec-from-file))$")
-      | strict | hasflag(""; ["--amend"]))
-  then "git commit --amend"
-  # The reflog is the last thing standing after a destructive command.
-  elif $sub == "reflog" and (firstpos | . == null or . == dyn or . == "expire" or . == "delete")
-  then "git reflog expire/delete"
-  # add, list and move are what `wt` and isolation:"worktree" drive.
-  elif $sub == "worktree" and (firstpos | . == null or . == dyn or . == "remove" or . == "prune")
-  then "git worktree remove/prune"
-  else empty end;
-def st0: {al: {}, C: [], cfg: false};
-# Global options come before the subcommand; these take a value word. The state
-# keeps inline aliases, the -C directories the alias lookup must follow, and
-# whether the call changes config the lookup cannot see.
-def split_globals($i; $st):
-  .[$i] as $x
-  | if $i >= length then empty
-    elif $x == null or $x == dyn then {sub: null, rest: .[$i + 1:], st: $st}
-    elif any("-C", "-c", "--git-dir", "--work-tree", "--namespace",
-      "--config-env", "--super-prefix", "--attr-source"; . == $x) then
-      .[$i + 1] as $val
-      | ([$val | select($x == "-c" and type == "string")
-        | capture("^alias\\.(?<n>[^=]+)=(?<v>.*)$"; "s")] | .[0]) as $m
-      | split_globals($i + 2;
-          if $m then $st | .al += {($m.n | ascii_downcase): $m.v}
-          elif $x == "-C" and ($val | type == "string") then $st | .C += [$val]
-          elif $x == "--namespace" or $x == "--super-prefix" or $x == "--attr-source" then $st
-          else $st | .cfg = true end)
-    elif ($x | test("^--(git-dir|work-tree|config-env|exec-path)=")) then split_globals($i + 1; $st | .cfg = true)
-    elif ($x | startswith("-")) then split_globals($i + 1; $st)
-    else {sub: $x, rest: .[$i + 1:], st: $st} end;
-def gitwalk($depth; $st):
-  split_globals(0; $st)
-  | .sub as $sub | .rest as $rest | .st as $st2
-  # A subcommand bash builds at run time (`git re$()set`) cannot be judged.
-  | if $sub == null then "B\tgit subcommand that is not a literal word"
-    else
-      ([$rest | verdict($sub)] | .[0]) as $v
-      | if $v then "B\t" + $v
-        elif any(builtins[]; . == $sub) then empty
-        elif $st2.al[$sub | ascii_downcase] then
-          $st2.al[$sub | ascii_downcase] as $val
-          # A self-referencing alias would otherwise loop; past the cap the
-          # command is refused rather than guessed at.
-          | if $depth >= 3 then "B\tgit alias nesting deeper than 3"
-            elif ($val | startswith("!"))
-            then "S\t" + (($val[1:] + " " + ($rest | render)) | @json)
-            else ([$val | splits("\\s+") | select(. != "")] + $rest)
-              | gitwalk($depth + 1; $st2) end
-        elif ($sub | test("^[A-Za-z0-9][A-Za-z0-9-]*$")) then
-          if $st2.cfg or $taint
-          then "B\tgit alias under config the guard cannot see"
-          else "A\t" + ($rest | tojson) + "\t" + $sub + "\t" + ($st2.C | tojson) end
-        else empty end
-    end;
-# The index of the script word after the -c cluster at $k: bash takes the first
-# word that is not an option, so `bash -c -x "…"` runs the "…".
-def scriptpos($k):
-  def go($j):
-    if $j >= length then null
-    elif .[$j] == "--" then (if $j + 1 < length then $j + 1 else null end)
-    elif .[$j] == "-o" or .[$j] == "+o" then go($j + 2)
-    elif (.[$j] | type == "string") and (.[$j] | test("^[-+]")) then go($j + 1)
-    else $j end;
-  go($k + 1);
-# A shell with no -c and no script file reads its script from stdin.
-# Scans the arguments of a shell: -o and +o take a value, a -c cluster means the
-# script is an argument, -s or running out of words means stdin.
-def stdinscan($j):
-  if $j >= length then true
-  elif (.[$j] | type) != "string" then false
-  elif .[$j] == "-o" or .[$j] == "+o" then stdinscan($j + 2)
-  elif (.[$j] | test("^-[A-Za-z]*c")) then false
-  elif (.[$j] | test("^-[A-Za-z]*s")) then true
-  elif (.[$j] | test("^[-+]")) then stdinscan($j + 1)
-  else false end;
-# A shell that reads its script from stdin, directly or behind a wrapper such as
-# sudo, env or timeout.
-def stdinshell:
-  [.Args[]? | word] as $w
-  | ([range(0; $w | length) as $i
-      | select($w[$i] | type == "string" and (base as $b | any(shells[]; . == $b))) | $i]
-     | .[0]) as $s
-  | if $s == null then false
-    elif any($w[:$s][]; type != "string"
-      or (((base as $b | any(wrappers[]; . == $b)) or test("^-|=|^[0-9.]+[smhd]?$")) | not))
-    then false
-    else $w[$s + 1:] | stdinscan(0) end;
-def callrecs($depth):
-  [.Args[]?] as $a | [$a[] | wordx] as $w
-  # A command word bash builds at run time: refused when it is a glob or brace
-  # (`{gi,rese}t`, `/usr/bin/g?t`), when its literal pieces spell git
-  # (`g$()it`, `"$(git --exec-path)"/git-reset`), or when a guarded verb
-  # follows it, literal or assembled (`$G reset`, `re$()set`).
-  | (if ($w | length) > 0 and ($w[0] == null or $w[0] == dyn)
-       and (($a[0] | globword)
-         or (($a[0] | litpieces) | test("(^|/)git(-.*)?$"))
-         or any($w[1:][]; isguarded)
-         or any($a[1:][]; word == null and (litpieces | test(verbre))))
-     then "B\tdynamic command word that may run git" else empty end),
-    (range(0; $w | length) as $i
-     | $w[$i] as $x | select($x != null and $x != dyn) | ($x | base) as $b | $w[$i + 1:] as $after
-     | $a[$i + 1:] as $afterw
-     # Any git word starts an invocation, so sudo, env, xargs, timeout, nohup
-     # and find -exec need no wrapper list.
-     | if $b == "git" then $after | gitwalk($depth; st0)
-       elif ($b | test("^git-.")) then [$b[4:]] + $after | gitwalk($depth; st0)
-       elif $b == "rm" then
-         if ($after | hasflag("rRf"; ["--recursive", "--force"]))
-           and any($after[]; type == "string" and test("(^|/)\\.git/?$"))
-         then "B\trm --recursive/--force on a .git directory" else empty end
-       elif any(shells[]; . == $b) then
-         ([range(0; $after | length) as $k
-           | select($after[$k] | type == "string" and test("^-[A-Za-z]*c")) | $k]
-          | .[0]) as $k
-         | if $k != null then
-             ($after | scriptpos($k)) as $s
-             | if $s != null then "S\t" + ($afterw[$s] | script(false) | @json) else empty end
-           else empty end
-       elif $b == "eval" then
-         if ($afterw | length) > 0
-         then "S\t" + ([$afterw[] | script(false)] | join(" ") | @json) else empty end
-       else empty end);
-# A heredoc or here-string fed to a shell is a script, not data. A heredoc body
-# keeps its backslashes as written; a here-string is a word, so its quoting
-# comes off first, as bash takes it off.
-def hdocrecs:
-  select(.Cmd.Type == "CallExpr"
-    and any(.Cmd.Args[]? | word | select(. != null) | base; . as $b | any(shells[]; . == $b)))
-  | .Redirs[]?
-  | if .Hdoc != null then .Hdoc | script(true)
-    elif .Word != null then .Word | script(false)
-    else empty end
-  | "S\t" + @json;
-# Text piped into a shell that reads stdin is a script too: `echo "…" | bash`.
-def piperecs:
-  select(.Type == "BinaryCmd" and (.Op == 13 or .Op == 14)
-    and .Y.Cmd.Type == "CallExpr" and (.Y.Cmd | stdinshell))
-  | [.X | .. | objects
-     | (select(.Type == "CallExpr") | [.Args[1:][]? | script(false)] | join(" ")),
-       (select(has("Hdoc") and .Hdoc != null) | .Hdoc | script(true))]
-  | join("\n") | "S\t" + @json;
-if $mode == "ast" then
-  input | .. | objects
-  | (select(.Type == "CallExpr") | callrecs($depth)), (select(has("Redirs")) | hdocrecs),
-    piperecs
-else
-  # An alias found in a -C repo expands there, so its next hop is looked up
-  # there too.
-  ([$value | splits("\\s+") | select(. != "")] + $rest) | gitwalk($depth; st0 | .C = $cdirs)
-end
+function scan(line,    n, i, j, c, k, dl, dash, lc) {
+  if (body) { hdline(line); return }
+  k = K[d]
+  # Whole-line shortcuts: a line that cannot close its quote, or a fresh
+  # command line with nothing that could reach git, skips the character walk.
+  if (k == "S" || k == "A") { if (!index(line, q)) { addw(line "\n"); return } }
+  else if (k == "D") { if (line !~ DQ) { addw(line "\n"); return } }
+  else if (!cont && !NW[o] && !HW[o] && !hot(line) && !index(line, q) && line !~ CX) { seg++; return }
+  n = split(line, ch, "")
+  lc = 0
+  for (i = 1; i <= n; i++) {
+    c = ch[i]; k = K[d]
+    if (k == "S") {
+      for (j = i; j <= n && ch[j] != q; j++) ;
+      if (j > i) addw(substr(line, i, j - i))
+      if (j <= n) pop()
+      i = j
+    } else if (k == "A") {
+      if (c == BS) { if (i < n) addw(ch[++i]) }
+      else if (c == q) pop()
+      else addw(c)
+    } else if (k == "D") {
+      for (j = i; j <= n && ch[j] != "\"" && ch[j] != BS && ch[j] != "$" && ch[j] != "`"; j++) ;
+      if (j > i) addw(substr(line, i, j - i))
+      if (j > n) break
+      i = j; c = ch[i]
+      if (c == "\"") pop()
+      else if (c == BS) { if (i < n) addw(ch[++i]); else lc = 1 }
+      else if (c == "`") { addw("$"); push("C", "`") }
+      else if (ch[i + 1] == "(") { i++; addw("$"); push("C", ")") }
+      else addw("$")
+    } else if (!(c in SP)) {
+      for (j = i + 1; j <= n && !(ch[j] in SP); j++) ;
+      addw(substr(line, i, j - i))
+      i = j - 1
+    } else if (c == " " || c == "\t") endword()
+    else if (c == BS) { if (i < n) addw(ch[++i]); else lc = 1 }
+    else if (c == q) { HW[o] = 1; push("S", "") }
+    else if (c == "\"") { HW[o] = 1; push("D", "") }
+    else if (c == "$") {
+      if (ch[i + 1] == q) { i++; HW[o] = 1; push("A", "") }
+      else if (ch[i + 1] == "(") { i++; addw("$"); push("C", ")") }
+      else addw("$")
+    } else if (c == "`") {
+      if (CL[d] == "`") { endseg(); pop() } else { addw("$"); push("C", "`") }
+    } else if (c == "(") { endseg(); push("C", ")") }
+    else if (c == ")") { endseg(); if (CL[d] == ")") pop() }
+    else if (c == ";" || c == "|" || (c == "&" && ch[i + 1] != ">")) endseg()
+    else if (c == "#") { if (HW[o]) addw(c); else break }
+    else if (c == "<" && ch[i + 1] == "<" && ch[i + 2] != "<") {
+      if (CW[o] ~ /^[0-9]+$/) dropword(); else endword()
+      i += 2; dash = 0
+      if (ch[i] == "-") { dash = 1; i++ }
+      while (ch[i] == " " || ch[i] == "\t") i++
+      for (dl = ""; i <= n && ch[i] !~ /[ \t;&|()<>]/; i++) if (ch[i] != q && ch[i] != "\"" && ch[i] != BS) dl = dl ch[i]
+      i--
+      HD[++nhd] = dl; HT[nhd] = dash; HS[nhd] = seg
+    } else {
+      # A redirection: an fd number before it and the target after it are
+      # not arguments, so `git branch 2>/dev/null` stays a listing.
+      if (CW[o] ~ /^[0-9]+$/) dropword(); else endword()
+      while (i < n && ch[i + 1] ~ /[<>&|]/) i++
+      RD[o] = 1
+    }
+  }
+  k = K[d]
+  if (k == "S" || k == "A") addw("\n")
+  else if (k == "D") { if (!lc) addw("\n") }
+  else if (!lc) {
+    endseg()
+    if (nhd) { body = 1; hk = 1; hb = ""; hl = 0 }
+  }
+  cont = lc
+}
+# A heredoc body is data unless a shell reads it as a script.
+function hdline(line,    t) {
+  t = line
+  if (HT[hk]) sub(/^\t+/, "", t)
+  if (t == HD[hk]) {
+    if (HS[hk] in SH) enqueue(hb)
+    hb = ""; hl = 0
+    if (++hk > nhd) { body = 0; nhd = 0 }
+    return
+  }
+  if ((HS[hk] in SH) && hl < CAP) { hb = hb line "\n"; hl += length(line) + 1 }
+}
+
+# One simple command. Assignments, wrappers and their options come off the
+# front; `-exec` starts a nested command; a shell with -c and eval queue their
+# script for a later pass.
+function run(lv, s, e,    i, w, b, wr, j) {
+  wr = 0
+  for (i = s; i <= e; i++) {
+    w = W[lv, i]; b = w; sub(/.*\//, "", b)
+    if (b == "git") break
+    if (w ~ /^[A-Za-z_][A-Za-z0-9_]*=/) continue
+    if (b in WRAP) { wr = 1; continue }
+    # Runners whose command follows `--`, or a directory for direnv. A mise
+    # command string runs through a shell, so it is queued like sh -c.
+    if ((b == "mise" && W[lv, i + 1] ~ /^(exec|x)$/) || (b == "op" && W[lv, i + 1] == "run")) {
+      for (i += 2; i <= e && W[lv, i] != "--"; i++) {
+        if (W[lv, i] ~ /^(-c|--command)$/ && i < e) enqueue(W[lv, i + 1])
+        else if (W[lv, i] ~ /^--command=/) enqueue(substr(W[lv, i], 11))
+      }
+      continue
+    }
+    if (b == "direnv" && W[lv, i + 1] == "exec") { i += 2; continue }
+    if (wr && (w ~ /^-/ || w ~ /^[0-9][0-9.]*[smhd]?$/ || (i > s && W[lv, i - 1] ~ /^(-[A-Za-z]|--(signal|kill-after|user|group|chdir|unset))$/))) continue
+    break
+  }
+  if (i > e) return
+  for (j = i + 1; j <= e; j++) if (W[lv, j] ~ /^-(exec|execdir|ok|okdir)$/) { run(lv, j + 1, e); break }
+  if (b == "git") gitcheck(lv, i + 1, e)
+  else if (b == "wt") wtcheck(lv, i + 1, e)
+  else if (b == "gh") ghcheck(lv, i + 1, e)
+  else if (b in SHELLS) {
+    for (j = i + 1; j <= e; j++) {
+      w = W[lv, j]
+      if (w == "-o" || w == "+o") j++
+      else if (w ~ /^-[A-Za-z]*c[A-Za-z]*$/) { if (j < e) enqueue(W[lv, j + 1]); return }
+      else if (w !~ /^[-+]/) return
+    }
+    SH[seg] = 1
+  } else if (b == "eval") {
+    for (w = ""; ++i <= e; ) w = w " " W[lv, i]
+    enqueue(w)
+  } else if (b == "watch") {
+    # watch joins its arguments and hands them to sh -c.
+    for (j = i + 1; j <= e && W[lv, j] ~ /^-/; j++) if (W[lv, j] ~ /^(-n|--interval|-q|--equexit)$/) j++
+    for (w = ""; j <= e; j++) w = w " " W[lv, j]
+    enqueue(w)
+  }
+}
+
+# Global options come off the front; the subcommand then has to be a read.
+function gitcheck(lv, i, e,    w, sc, k, np, p1) {
+  for (; i <= e; i++) {
+    w = W[lv, i]
+    if (w ~ /^(-C|-c|--git-dir|--work-tree|--namespace|--config-env|--super-prefix|--attr-source)$/) i++
+    else if (w !~ /^-/) break
+  }
+  if (i > e) return
+  sc = W[lv, i]
+  if (sc in READ) {
+    for (k = i + 1; k <= e; k++) if (W[lv, k] ~ /^--output(=|$)/) deny("git " sc " --output", "writes a file. The plain read with its output redirected does the same with no git write.")
+    return
+  }
+  # Staging and new commits are the writes agents may run. git takes any
+  # unique prefix of a long option, and --am is already --amend.
+  if (sc == "add") return
+  if (sc == "commit") {
+    for (k = i + 1; k <= e; k++) if (W[lv, k] ~ /^--am(e(nd?)?)?$/) deny("git commit --amend", REWRITE)
+    return
+  }
+  # Help never writes. Only the first argument counts: later, `--help` can be
+  # the value of an option, as in `git commit -m --help`.
+  if (W[lv, i + 1] == "--help" && i < e) return
+  if (e == i + 1 && W[lv, e] == "-h") return
+  np = 0; p1 = ""
+  for (k = i + 1; k <= e; k++) if (W[lv, k] !~ /^-/ && !np++) p1 = W[lv, k]
+  if (sc == "branch") { if (listonly(lv, i + 1, e, BR_S, BR_L, BR_LS)) return }
+  else if (sc == "tag") { if (listonly(lv, i + 1, e, TG_S, TG_L, TG_LS)) return }
+  else if (sc == "config") { if (confread(lv, i + 1, e)) return }
+  else if (sc == "remote") { if (p1 == "" || p1 == "show" || p1 == "get-url") return }
+  else if (sc == "stash") { if (p1 == "list" || p1 == "show") return }
+  else if (sc == "worktree") { if (p1 == "list") return }
+  else if (sc == "reflog") { if (p1 !~ /^(expire|delete|drop|write)$/) return }
+  else if (sc == "notes") { if (p1 == "" || p1 == "list" || p1 == "show") return }
+  else if (sc == "submodule") { if (p1 == "" || p1 == "status" || p1 == "summary") return }
+  else if (sc == "symbolic-ref") {
+    for (k = i + 1; k <= e; k++) if (W[lv, k] ~ /^(-d|--delete)$/) np = 2
+    if (np <= 1) return
+  }
+  deny("git " sc, (sc in KIND) ? KIND[sc] : OTHER)
+}
+# worktrunk switches between worktrees and makes new ones; only its listing,
+# config and help leave the checkout alone.
+function wtcheck(lv, s, e,    k, w) {
+  for (k = s; k <= e; k++) {
+    w = W[lv, k]
+    if (w ~ /^(-C|--config|--config-set)$/) k++
+    else if (w !~ /^-/) break
+  }
+  if (k > e || w ~ /^(list|config|help)$/) return
+  deny("wt " w, MOVE)
+}
+# The gh commands that check out, merge or sync a branch in this clone.
+function ghcheck(lv, s, e,    k, w, g1, g2) {
+  for (k = s; k <= e; k++) {
+    w = W[lv, k]
+    if (w ~ /^(-R|--repo)$/) k++
+    else if (w !~ /^-/) { if (g1 == "") g1 = w; else { g2 = w; break } }
+  }
+  if ((g1 == "pr" && g2 ~ /^(checkout|co|merge)$/) || (g1 == "repo" && g2 == "sync")) deny("gh " g1 " " g2, MOVE)
+}
+function listonly(lv, s, e, sre, lre, lsre,    k, w, np, ls) {
+  np = 0; ls = 0
+  for (k = s; k <= e; k++) {
+    w = W[lv, k]
+    if (w == "--") { np += e - k; break }
+    if (w !~ /^-/) np++
+    else if (w ~ /^--/ ? w !~ lre : w !~ sre) return 0
+    else {
+      if (w ~ lsre) ls = 1
+      # A value after a space is a value, not a name to create.
+      if (w ~ /^--(sort|format)$/) k++
+    }
+  }
+  return !np || ls
+}
+function confread(lv, s, e,    k, w, np, p1, rd) {
+  np = 0; rd = 0; p1 = ""
+  for (k = s; k <= e; k++) {
+    w = W[lv, k]
+    if (w == "-e" || w ~ /^--(add|unset|unset-all|replace-all|rename-section|remove-section|edit)$/) return 0
+    if (w == "-l" || w ~ /^--(get|get-all|get-regexp|get-urlmatch|get-color|get-colorbool|list)$/) rd = 1
+    else if (w ~ /^(-f|--file|--blob|--type|--default|--comment|--value|--url)$/) k++
+    else if (w !~ /^-/ && !np++) p1 = w
+  }
+  return rd || p1 == "get" || p1 == "list" || (np <= 1 && p1 !~ /^(set|unset|rename-section|remove-section|edit)$/)
+}
 '
 
-block() {
-  # jq --arg, never string interpolation: $COMMAND may hold quotes or newlines.
-  jq -cn --arg cmd "$COMMAND" --arg pat "$1" \
-    '{decision: "deny", reason: ($cmd + " matches dangerous pattern " + $pat + ". Repo policy forbids this command. Everything else stays available, git commit and git push included.")}'
-  exit 2
-}
-
-# [SECURITY] Fail closed: a guard that cannot evaluate a command refuses it.
-refuse() {
-  jq -cn --arg cmd "$COMMAND" '{decision: "deny", reason: ($cmd + " could not be evaluated by the git guard. Refusing.")}'
-  exit 2
-}
-
-# Without a parser, a quote, backslash or expansion must not hide a word, so
-# those characters are deleted rather than their spans; every separator becomes
-# a line break. ANSI-C quoting can spell any word, so it is refused outright.
-fallback() {
-  local lines i j w verb rest
-  local -a words
-  local flat
-  case $1 in *"\$'"*) refuse ;; esac
-  # Brace expansion builds words the deletion below would only join
-  # (`git {reset,} --hard` becomes `reset,`), so it is refused outright.
-  case $1 in *\{*,*\}* | *\{*..*\}*) refuse ;; esac
-  # shellcheck disable=SC2016  # literal characters for tr, not an expansion
-  flat=$(printf '%s\n' "$1" | tr -d '\042\047\134$(){}\140')
-  # A glob can spell git or a verb (`/usr/bin/g?t`); refused when the text
-  # could run one.
-  case $flat in
-    *\** | *\?* | *\[*)
-      case $flat in *git* | *reset* | *clean* | *restore* | *stash* | *rebase* | *rm* | *gc* | *prune* | *filter-* | *update-ref* | *reflog* | *worktree* | *amend*) refuse ;; esac
-      ;;
-  esac
-  lines=$(printf '%s\n' "$flat" | tr ';&|' '\n' | { grep -F git || :; })
-  while IFS=$' \t' read -r -a words; do
-    i=0
-    while [[ "$i" -lt "${#words[@]}" ]]; do
-      w=${words[i]##*/}
-      verb=
-      j=$((i + 1))
-      if [[ "$w" == git ]]; then
-        while [[ "$j" -lt "${#words[@]}" ]]; do
-          case ${words[j]} in
-            -C | -c | --git-dir | --work-tree | --namespace | --config-env | --super-prefix | --attr-source) j=$((j + 2)) ;;
-            -*) j=$((j + 1)) ;;
-            *)
-              verb=${words[j]}
-              j=$((j + 1))
-              break
-              ;;
-          esac
-        done
-      else
-        case $w in git-?*) verb=${w#git-} ;; esac
-      fi
-      case " $GUARDED_VERBS " in *" $verb "*) block "git $verb" ;; esac
-      # The flag-level rules, read crudely: the force, delete, move and amend
-      # flags of each verb, clusters and long-option prefixes included. These are
-      # globs, so a flag first in its cluster needs its own pattern.
-      for rest in "${words[@]:j}"; do
-        case $verb:$rest in
-          branch:-[dDmMf]* | branch:-[!-]*[dDmMf]* | branch:--f* | branch:--d* | branch:--mo* | \
-            checkout:-[fB]* | checkout:-[!-]*[fB]* | checkout:--f* | checkout:-- | checkout:. | \
-            switch:-[fC]* | switch:-[!-]*[fC]* | switch:--f* | switch:--di* | \
-            commit:--am*) block "git $verb $rest" ;;
-        esac
-      done
-      i=$((i + 1))
-    done
-  done <<< "$lines"
-}
-
-handle() {
-  local depth=$2 kind a b c text
-  while IFS=$'\t' read -r kind a b c; do
-    case $kind in
-      B) block "$a" ;;
-      S)
-        text=$(jq -r . <<< "$a") || refuse
-        analyze "$text" $((depth + 1))
-        ;;
-      A) resolve_alias "$b" "$a" "$depth" "$c" ;;
-    esac
-  done <<< "$1"
-}
-
-# `git config` is the one lookup jq cannot make, and it runs only for a
-# subcommand that is not a git builtin. It follows the call's -C directories,
-# so an alias defined in another repo is still found.
-resolve_alias() {
-  local value records args dir rc
-  if [[ -z "$CWD" ]]; then
-    CWD=$(jq -r '.cwd // empty' <<< "$PAYLOAD") || CWD=
-    [[ -n "$CWD" ]] || CWD=$PWD
-  fi
-  # Unquoted, bash expands a leading ~ in the -C value before git sees it.
-  dir=$(jq -r --arg cwd "$CWD" --arg home "$HOME" 'reduce .[] as $d ($cwd;
-    if $d == "~" then $home elif ($d | startswith("~/")) then $home + $d[1:]
-    elif ($d | startswith("/")) then $d else . + "/" + $d end)' <<< "${4:-[]}") || refuse
-  # Exit 1 is "no such alias". Anything else (a missing -C directory, a broken
-  # config) means the lookup saw nothing, which is not the same as safe.
-  rc=0
-  value=$(git -C "$dir" config --get "alias.$1" 2> /dev/null < /dev/null) || rc=$?
-  case $rc in
-    0) ;;
-    1) return 0 ;;
-    *) refuse ;;
-  esac
-  [[ "$3" -lt 3 ]] || block "git alias nesting deeper than 3"
-  case $value in
-    '!'*)
-      args=$(jq -r 'map(if . == null or . == "\u0000dyn" then "\"$_dyn\"" else @sh end) | join(" ")' <<< "$2") || refuse
-      analyze "${value#!} $args" $(($3 + 1))
-      ;;
-    *)
-      records=$(jq -nr --arg mode git --arg guarded "$GUARDED_VERBS" --arg value "$value" \
-        --argjson rest "$2" --argjson depth $(($3 + 1)) --argjson taint "$TAINT" \
-        --argjson cdirs "${4:-[]}" "$JQ_PROG") || refuse
-      handle "$records" $(($3 + 1))
-      ;;
-  esac
-}
-
-# shfmt reads bash first and zsh second, so zsh-only syntax such as `${(f)...}`
-# still gets a tree instead of the fallback.
-analyze() {
-  local ast records
-  [[ "$2" -le 3 ]] || block "shell nesting deeper than 3"
-  ast=
-  if [[ -n "$HAVE_SHFMT" ]]; then
-    ast=$(printf '%s\n' "$1" | shfmt -ln=bash --to-json 2> /dev/null) ||
-      ast=$(printf '%s\n' "$1" | shfmt -ln=zsh --to-json 2> /dev/null) || ast=
-  fi
-  if [[ -z "$ast" ]]; then
-    fallback "$1"
-    return 0
-  fi
-  records=$(jq -nr --arg mode ast --arg guarded "$GUARDED_VERBS" --arg value "" \
-    --argjson rest '[]' --argjson depth "$2" --argjson taint "$TAINT" --argjson cdirs '[]' \
-    "$JQ_PROG" <<< "$ast") || refuse
-  handle "$records" "$2"
-}
-
-HAVE_SHFMT=
-command -v shfmt > /dev/null 2>&1 && HAVE_SHFMT=1
-CWD=
-analyze "$COMMAND" 0
+REASON=$(printf '%s\n' "$REST" | awk -v q="'" "$GUARD_AWK") || block "the git guard failed to run and cannot check this call. Rules set by the user allow agents only git reads, add and commit."
+[[ -z $REASON ]] || block "$REASON"
 exit 0

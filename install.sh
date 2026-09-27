@@ -13,7 +13,8 @@ repo="$(cd "$(dirname "$0")" && pwd)"
 dry=""
 [[ "${1:-}" == "-n" ]] && dry="-nv"
 
-# jq is also what the git hooks need; without it they refuse every git command.
+# jq also lets the Claude worktree hook read a call; the git hooks need only
+# bash and awk.
 for tool in jq yq rsync; do
   command -v "$tool" > /dev/null || {
     echo "install.sh: $tool is missing" >&2
