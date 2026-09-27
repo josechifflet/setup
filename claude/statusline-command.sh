@@ -13,7 +13,9 @@ input=$(cat)
 
 # Extract values in one jq call. The statusline runs often, so avoid
 # repeated parser startup for each field.
-IFS=$'\t' read -r cwd model ctx_size lines_added lines_removed input_tokens cache_create cache_read effort < <(
+# effort stays last: IFS collapses a run of tabs, so an empty field
+# anywhere but the end would shift every value after it.
+IFS=$'	' read -r cwd model ctx_size lines_added lines_removed input_tokens cache_create cache_read duration_ms effort < <(
   jq -r '
     [
       (.cwd // ""),
@@ -24,6 +26,7 @@ IFS=$'\t' read -r cwd model ctx_size lines_added lines_removed input_tokens cach
       (.context_window.current_usage.input_tokens // 0),
       (.context_window.current_usage.cache_creation_input_tokens // 0),
       (.context_window.current_usage.cache_read_input_tokens // 0),
+      ((.cost.total_duration_ms // 0) | floor),
       (.effort.level // "")
     ] | @tsv
   ' <<< "$input"
@@ -119,6 +122,25 @@ if [[ "$lines_added" != "0" || "$lines_removed" != "0" ]]; then
   lines_display="${GREEN}+${lines_added}${RESET}/${RED}-${lines_removed}${RESET}"
 fi
 
+# Session age. Long unattended runs are the failure this setup guards
+# against, so the segment turns yellow past one hour and red past three.
+age_display=""
+if ((duration_ms >= 60000)); then
+  mins=$((duration_ms / 60000))
+  if ((mins >= 180)); then
+    age_color="$RED"
+  elif ((mins >= 60)); then
+    age_color="$YELLOW"
+  else
+    age_color="$DIM"
+  fi
+  if ((mins >= 60)); then
+    age_display="${age_color}$((mins / 60))h$(printf '%02d' $((mins % 60)))m${RESET}"
+  else
+    age_display="${age_color}${mins}m${RESET}"
+  fi
+fi
+
 # Build output — profile tag first so you always know which config dir is active
 PROFILE=$(strip_ctrl "$PROFILE")
 dir=$(strip_ctrl "$dir")
@@ -131,5 +153,6 @@ out="${MAGENTA}${PROFILE}${RESET}"
 [[ -n "$model_short" ]] && out="$out ${DIM}|${RESET} ${CYAN}$model_short${RESET}$effort_display"
 [[ -n "$ctx_display" ]] && out="$out ${DIM}|${RESET} $ctx_display"
 [[ -n "$lines_display" ]] && out="$out ${DIM}|${RESET} $lines_display"
+[[ -n "$age_display" ]] && out="$out ${DIM}|${RESET} $age_display"
 
 printf '%s' "$out"

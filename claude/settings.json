@@ -24,7 +24,6 @@
   "disableBundledSkills": true,
   "disableClaudeAiConnectors": true,
   "disableRemoteControl": true,
-  "effortLevel": "xhigh",
   "enableAllProjectMcpServers": false,
   "enabledPlugins": {
     "context7@claude-plugins-official": true,
