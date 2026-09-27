@@ -20,7 +20,7 @@
       "Never run `git worktree (remove|prune)`: Deletes a checkout that may hold uncommitted work, or the admin data that finds one. Only `list` is a read; `add` and `move` are git writes, which agents leave to the user.",
       "Never run `wt (switch|remove|merge|step|hook)`: Changes the branch or checkout this session works in. Every agent and subagent stays on the branch and checkout the session started in, plans included; only the user changes branches or worktrees. Give the user the exact command instead. `wt list` is a read.",
       "Never run `gh pr (checkout|co|merge)` or `gh repo sync`: Changes the branch or checkout this session works in. Every agent and subagent stays on the branch and checkout the session started in, plans included; only the user changes branches or worktrees. Give the user the exact command instead.",
-      "Agents read git, and add and commit once asked. Never run another git write; give the user the commands instead."
+      "Agents read git, and add, commit and push once asked. Never run another git write; give the user the commands instead."
     ]
   }
 }

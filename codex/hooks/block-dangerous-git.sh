@@ -5,7 +5,8 @@ set -euo pipefail
 # and no agent or subagent leaves the branch or checkout its session started
 # in. That rule lives in each home's CLAUDE.md or AGENTS.md, and this hook is
 # the fast backstop behind it. It allows a git call only when its subcommand is
-# a known read, `add`, or `commit` without --amend. It also refuses `wt` and
+# a known read, `add`, `commit` without --amend, or `push` that neither forces
+# nor deletes. It also refuses `wt` and
 # the `gh` commands that check out, merge or sync a branch. Every refusal tells
 # the agent why and what to do next, because a bare denial reads as a hurdle to
 # route around. The text states facts, not orders: Claude can treat an order
@@ -42,7 +43,7 @@ esac
 # awk reads it as the first record and ignores the rest.
 case $PAYLOAD in
   *\"command\"*) REST=${PAYLOAD#*\"command\"} ;;
-  *) block "the git guard found no command in its payload and cannot check this call. Rules set by the user allow agents only git reads, add and commit." ;;
+  *) block "the git guard found no command in its payload and cannot check this call. Rules set by the user allow agents only git reads, add, commit and push." ;;
 esac
 case $REST in
   *git* | *'gh pr'* | *'gh repo'* | *'wt '*) ;;
@@ -71,15 +72,15 @@ BEGIN {
   SP[" "] = 1; SP["\t"] = 1; SP[q] = 1; SP[BS] = 1
   # What a refused command would do, and what the agent does instead.
   MOVE = "changes the branch or checkout this session works in. Rules set by the user keep every agent and subagent on the branch and checkout the session started in, plans included. Only the user changes branches or worktrees. The work continues on this branch. If it cannot, the next step is to hand the user the exact command."
-  REWRITE = "rewrites history or discards work. Rules set by the user allow agents only git reads, add and commit, and leave every other git write to the user. The next step is to hand the user the exact command and continue without it."
-  REMOTE = "talks to a remote. Rules set by the user leave every push, fetch and pull to the user. The next step is to hand the user the exact command and continue without it."
-  OTHER = "is not a git read, add or commit. Rules set by the user leave every other git write to the user. The next step is to hand the user the exact command and continue without it."
+  REWRITE = "rewrites history or discards work. Rules set by the user allow agents only git reads, add, commit and push, and leave every other git write to the user. The next step is to hand the user the exact command and continue without it."
+  REMOTE = "talks to a remote. Rules set by the user leave every fetch and pull to the user. The next step is to hand the user the exact command and continue without it."
+  OTHER = "is not a git read, add, commit or push. Rules set by the user leave every other git write to the user. The next step is to hand the user the exact command and continue without it."
   TAIL = " The same rules forbid reaching it through another spelling, a script, an alias, wt, a worktree or a subagent."
   n = split("switch checkout worktree branch bisect symbolic-ref", t, " ")
   for (k = 1; k <= n; k++) KIND[t[k]] = MOVE
   n = split("commit rebase reset merge cherry-pick revert restore stash clean rm am update-ref gc prune reflog replace filter-branch", t, " ")
   for (k = 1; k <= n; k++) KIND[t[k]] = REWRITE
-  n = split("push fetch pull clone", t, " ")
+  n = split("fetch pull clone", t, " ")
   for (k = 1; k <= n; k++) KIND[t[k]] = REMOTE
   # Listing forms. A positional argument is a name to create unless a flag
   # puts the command in list mode.
@@ -94,7 +95,7 @@ BEGIN {
 NR == 1 {
   s = $0
   sub(/^[ \t\r:]*/, "", s)
-  if (substr(s, 1, 1) != "\"") { print "the git guard found a command that is not a string and cannot check this call. Rules set by the user allow agents only git reads, add and commit."; done = 1; next }
+  if (substr(s, 1, 1) != "\"") { print "the git guard found a command that is not a string and cannot check this call. Rules set by the user allow agents only git reads, add, commit and push."; done = 1; next }
   s = substr(s, 2)
   # [PERF] Each gsub costs ~3ms on a 245KB command, so one runs only when
   # index finds its target, and the lines split on the escaped \n directly.
@@ -328,6 +329,16 @@ function gitcheck(lv, i, e,    w, sc, k, np, p1) {
     for (k = i + 1; k <= e; k++) if (W[lv, k] ~ /^--am(e(nd?)?)?$/) deny("git commit --amend", REWRITE)
     return
   }
+  # A plain push only adds commits. Force, a + refspec, delete, a :ref refspec,
+  # mirror and prune rewrite or drop remote refs. --for is already --force.
+  if (sc == "push") {
+    for (k = i + 1; k <= e; k++) {
+      w = W[lv, k]
+      if (w ~ /^(:|-[A-Za-z]*d|--(de|mi|pru))/) deny("git push --delete", REWRITE)
+      if (w ~ /^(\+|-[A-Za-z]*f|--for)/) deny("git push --force", REWRITE)
+    }
+    return
+  }
   # Help never writes. Only the first argument counts: later, `--help` can be
   # the value of an option, as in `git commit -m --help`.
   if (W[lv, i + 1] == "--help" && i < e) return
@@ -397,6 +408,6 @@ function confread(lv, s, e,    k, w, np, p1, rd) {
 }
 '
 
-REASON=$(printf '%s\n' "$REST" | awk -v q="'" "$GUARD_AWK") || block "the git guard failed to run and cannot check this call. Rules set by the user allow agents only git reads, add and commit."
+REASON=$(printf '%s\n' "$REST" | awk -v q="'" "$GUARD_AWK") || block "the git guard failed to run and cannot check this call. Rules set by the user allow agents only git reads, add, commit and push."
 [[ -z $REASON ]] || block "$REASON"
 exit 0
