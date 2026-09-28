@@ -1,0 +1,1154 @@
+#!/usr/bin/env python3
+"""trees — lint behaviour trees (`.tree`) and list their leaves.
+
+  trees lint [--strict] <file|dir>...          path:line:col: level[code]: message
+  trees paths [--smoke] [--aligned] <file|dir>...  path:line: root — given …, it should …
+  trees audit [--strict] <home>                path:line:col: level[code]: message
+  trees --self-test
+
+A directory means every `*.tree` under it, in sorted order. Exit 0 when clean,
+1 on an error (a warning too with --strict, or a file `paths` cannot trust),
+2 on a usage or read failure.
+
+Source of truth: references/notation.md in this skill. The rules below encode
+its connector, indentation, comment, multiple-tree and keyword semantics.
+
+`paths` prints one line per leaf (a top-level `it should`), its effects below it
+with `+`. A check gives each printed leaf one verdict, so `paths` refuses a file
+with lint errors: a misparsed tree would silently drop or invent leaves.
+`--smoke` follows the last child at every level, the happy path by convention.
+`--aligned` skips a tree with a `// DRAFT:` line: checking a draft tests a guess.
+
+`audit` lints every unit, then checks the home's layout against the disk: the
+index `## Homes` list, audited in turn, its `## Areas` list, each card's `## Units` list, `(no tree)` marks, root
+prefixes and repeated roots. It warns when a unit, an area or the home holds
+more leaves than the budget (defaults below, or the index's `Budget:` line). It
+ends with one summary line per area. The A2xx codes are listed in
+references/audit.md.
+
+Design notes / resolved ambiguities:
+- Structure is validated by rebuilding the intended tree from each node's actual
+  connector column (first `├`/`└`) via a column stack (O(n); per-line prefix work
+  is O(depth)). is-last-child is derived from file order, then each prefix column
+  is diffed against what the ancestor state requires -> exact structural codes.
+- Leading/trailing stray blank lines: the spec is silent, but a well-formed
+  `.tree` has no surrounding blanks, so they are flagged as E110 (error), like
+  interior blanks and wrong tree separators. A single trailing newline is the
+  line terminator, not a blank line, and is not flagged.
+- E204 (trailing period) is applied to node labels only, never the root, so a
+  root that legitimately ends in '.' is not a false positive.
+- Columns are 1-based in output and counted in characters (input decoded UTF-8).
+"""
+
+import os
+import re
+import sys
+
+CONN_TEE = '├'    # ├
+CONN_COR = '└'    # └
+PIPE = '│'        # │
+DASH = '─'        # ─
+ASSERT = 'it should '
+
+
+def is_blank(s):
+    return s.strip() == ''
+
+
+def is_comment(s):
+    return s.lstrip().startswith('//')
+
+
+def find_connector(line):
+    a = line.find(CONN_TEE)
+    b = line.find(CONN_COR)
+    cands = [(c, t) for c, t in ((a, CONN_TEE), (b, CONN_COR)) if c != -1]
+    if not cands:
+        return -1, None
+    cands.sort()
+    return cands[0]
+
+
+class Node:
+    __slots__ = ('ln', 'col', 'ctype', 'label', 'line', 'lcol',
+                 'parent', 'children', 'is_last', 'draft')
+
+    def __init__(self, ln, col, ctype, label, line, lcol):
+        self.ln = ln
+        self.col = col
+        self.ctype = ctype
+        self.label = label
+        self.line = line
+        self.lcol = lcol
+        self.parent = None
+        self.children = []
+        self.is_last = True
+        self.draft = False
+
+
+def check_trailing(D, ln, s):
+    r = s.rstrip()
+    if r != s:
+        D.append((ln, len(r) + 1, 'W303', 'trailing whitespace'))
+
+
+def parse_tree(block, D):
+    """Parse one tree (a content run, comments included). Returns root Node or None."""
+    ridx = 0
+    while ridx < len(block) and is_comment(block[ridx][1]):
+        ridx += 1
+    if ridx >= len(block):
+        return None
+    rln, rline = block[ridx]
+
+    if rline and rline[0] in ' \t':
+        D.append((rln, 1, 'E109', 'root line must start at column 0 (not indented)'))
+    elif CONN_TEE in rline or CONN_COR in rline:
+        D.append((rln, 1, 'E109', 'tree must begin with a root line that has no connector'))
+    if '\t' in rline:
+        D.append((rln, rline.find('\t') + 1, 'E108', 'tab character not allowed'))
+    check_trailing(D, rln, rline)
+
+    root = Node(rln, -3, None, rline.strip(), rline, -1)
+    root.draft = any(s.strip().startswith('// DRAFT:') for _, s in block)
+    parsed = []
+    stack = [root]
+
+    for (ln, s) in block[ridx + 1:]:
+        if is_comment(s):
+            continue
+        ci, ct = find_connector(s)
+        if ci == -1:
+            if s and s[0] not in ' \t':
+                D.append((ln, 1, 'E109',
+                          'expected a node connector; found a top-level line inside a tree'))
+            else:
+                D.append((ln, 1, 'E107',
+                          "line has no connector (expected '%s──' or '%s──')"
+                          % (CONN_TEE, CONN_COR)))
+            continue
+        if '\t' in s:
+            D.append((ln, s.find('\t') + 1, 'E108', 'tab character not allowed'))
+        check_trailing(D, ln, s)
+
+        lcol = ci + 4
+        label = ''
+        if len(s) >= ci + 3 and s[ci + 1] == DASH and s[ci + 2] == DASH:
+            rest = s[ci + 3:]
+            if rest[:1] == ' ':
+                lab = rest[1:]
+                if lab[:1] == ' ':
+                    D.append((ln, ci + 1, 'E107', 'connector must be followed by exactly one space'))
+                    label = lab.strip()
+                elif lab == '':
+                    D.append((ln, ci + 1, 'E107', 'connector must be followed by a non-empty label'))
+                else:
+                    label = lab.rstrip()
+            else:
+                D.append((ln, ci + 1, 'E107',
+                          "connector must be '%s── ' (── then one space)" % ct))
+                label = rest.strip()
+        else:
+            D.append((ln, ci + 1, 'E107',
+                      "malformed connector; expected '── ' after '%s'" % ct))
+            label = s[ci + 1:].strip()
+
+        nd = Node(ln, ci, ct, label, s, lcol)
+        while stack and stack[-1].col >= nd.col:
+            stack.pop()
+        parent = stack[-1] if stack else root
+        nd.parent = parent
+        parent.children.append(nd)
+        stack.append(nd)
+        parsed.append(nd)
+
+    for p in [root] + parsed:
+        for j, ch in enumerate(p.children):
+            ch.is_last = (j == len(p.children) - 1)
+
+    for nd in parsed:
+        # --- indentation (E101 / E102) ---
+        delta = nd.col - nd.parent.col
+        if delta == 3:
+            pass
+        elif delta >= 6:
+            D.append((nd.ln, nd.col + 1, 'E102',
+                      'level jump: node is more than one level deeper than its parent '
+                      '(indent 3 spaces per level)'))
+        else:
+            D.append((nd.ln, nd.col + 1, 'E101',
+                      'bad indent: expected connector at column %d, got %d (3 spaces per level)'
+                      % (nd.parent.col + 4, nd.col + 1)))
+
+        # --- connector type vs is-last (E103) ---
+        if nd.ctype == CONN_TEE and nd.is_last:
+            D.append((nd.ln, nd.col + 1, 'E103',
+                      "last child must use '%s──', not '%s──'"
+                      % (CONN_COR, CONN_TEE)))
+        elif nd.ctype == CONN_COR and not nd.is_last:
+            D.append((nd.ln, nd.col + 1, 'E103',
+                      "non-last child must use '%s──', not '%s──'"
+                      % (CONN_TEE, CONN_COR)))
+
+        # --- prefix columns (E104 / E105 / E106 / E108) ---
+        anc = {}
+        p = nd.parent
+        while p is not None and p.col >= 0:
+            anc[p.col] = p.is_last
+            p = p.parent
+        for k in range(nd.col):
+            ch = nd.line[k] if k < len(nd.line) else ' '
+            if ch == '\t':
+                continue  # already flagged E108 once for the line
+            if k in anc:
+                if anc[k]:  # ancestor is a last child -> column must be blank
+                    if ch == PIPE:
+                        D.append((nd.ln, k + 1, 'E104',
+                                  "'%s' below a last-child corner '%s'; use spaces"
+                                  % (PIPE, CONN_COR)))
+                    elif ch != ' ':
+                        D.append((nd.ln, k + 1, 'E108',
+                                  "invalid prefix character; only '%s' or space allowed" % PIPE))
+                else:  # ancestor still has siblings -> column must carry a pipe
+                    if ch == ' ':
+                        D.append((nd.ln, k + 1, 'E105',
+                                  "missing '%s'; an ancestor still has siblings below" % PIPE))
+                    elif ch != PIPE:
+                        D.append((nd.ln, k + 1, 'E108',
+                                  "invalid prefix character; only '%s' or space allowed" % PIPE))
+            else:
+                if ch == PIPE:
+                    D.append((nd.ln, k + 1, 'E106',
+                              "'%s' does not align with any ancestor connector" % PIPE))
+                elif ch != ' ':
+                    D.append((nd.ln, k + 1, 'E108',
+                              "invalid prefix character; only '%s' or space allowed" % PIPE))
+
+        # --- keywords / semantics ---
+        lab = nd.label
+        is_assert = lab.startswith('it should ')
+        is_branch = lab.startswith('given ') or lab.startswith('when ')
+        if not (is_assert or is_branch):
+            D.append((nd.ln, nd.lcol + 1, 'E201',
+                      "node label must start with 'given ', 'when ', or 'it should '"))
+        if lab.endswith('.'):
+            D.append((nd.ln, nd.lcol + 1, 'E204', 'label must not end with a period'))
+        if is_branch:
+            q = nd.parent
+            under_assert = False
+            while q is not None and q.col >= 0:
+                if q.label.startswith('it should '):
+                    under_assert = True
+                    break
+                q = q.parent
+            if under_assert:
+                D.append((nd.ln, nd.lcol + 1, 'E202',
+                          "'given'/'when' cannot appear under an 'it should' "
+                          '(assertions terminate a branch)'))
+            if not nd.children:
+                D.append((nd.ln, nd.lcol + 1, 'E203',
+                          "branch has no children; every 'given'/'when' must lead to an 'it should'"))
+        if is_assert:
+            cnt = 0
+            q = nd.parent
+            while q is not None and q.col >= 0 and q.label.startswith('it should '):
+                cnt += 1
+                q = q.parent
+            if cnt >= 2:
+                D.append((nd.ln, nd.lcol + 1, 'W304',
+                          "'it should' nested more than one level under another 'it should'"))
+
+    # --- duplicate sibling labels (W301) ---
+    for p in [root] + parsed:
+        seen = set()
+        for ch in p.children:
+            if ch.label in seen:
+                D.append((ch.ln, ch.lcol + 1, 'W301',
+                          'duplicate sibling label: %r' % ch.label))
+            else:
+                seen.add(ch.label)
+
+    return root
+
+
+def parse_text(text):
+    """Parse a whole file. Returns (roots, diagnostics)."""
+    D = []
+    if '\r' in text:
+        D.append((1, 1, 'W303', 'CRLF line endings detected; use LF'))
+
+    lines = text.split('\n')
+    if text.endswith('\n'):
+        lines = lines[:-1]  # drop the terminator, not a real blank line
+
+    classified = []
+    for i, raw in enumerate(lines):
+        s = raw[:-1] if raw.endswith('\r') else raw
+        classified.append((i + 1, s))
+    n = len(classified)
+
+    if not any(not is_blank(s) for _, s in classified):
+        return [], D  # empty / blank-only file: no trees
+
+    # group into content runs separated by blank runs
+    groups = []
+    i = 0
+    while i < n:
+        ln, s = classified[i]
+        if is_blank(s):
+            first = ln
+            c = 0
+            while i < n and is_blank(classified[i][1]):
+                c += 1
+                i += 1
+            groups.append(('blank', c, first))
+        else:
+            block = []
+            while i < n and not is_blank(classified[i][1]):
+                block.append(classified[i])
+                i += 1
+            groups.append(('content', block, None))
+
+    trees = []
+    for idx, g in enumerate(groups):
+        if g[0] == 'content':
+            trees.append(g[1])
+        else:
+            _, count, first = g
+            prev_c = idx > 0 and groups[idx - 1][0] == 'content'
+            next_c = idx < len(groups) - 1 and groups[idx + 1][0] == 'content'
+            if prev_c and next_c:
+                if count != 2:
+                    D.append((first, 1, 'E110',
+                              'trees must be separated by exactly two blank lines (found %d)' % count))
+            elif next_c and not prev_c:
+                D.append((first, 1, 'E110', 'unexpected blank line(s) before first tree'))
+            elif prev_c and not next_c:
+                D.append((first, 1, 'E110', 'unexpected blank line(s) after last tree'))
+
+    roots = []
+    for block in trees:
+        r = parse_tree(block, D)
+        if r is not None:
+            roots.append(r)
+
+    # --- container consistency across roots (E205 / W302) ---
+    if roots:
+        dc = [r for r in roots if '::' in r.label]
+        pl = [r for r in roots if '::' not in r.label]
+        if dc and pl:
+            style0 = '::' in roots[0].label
+            for r in roots:
+                if ('::' in r.label) != style0:
+                    D.append((r.ln, 1, 'W302',
+                              "inconsistent root style: mix of 'area::unit' and plain roots"))
+                    break
+        if len(dc) >= 2:
+            base = dc[0].label.split('::', 1)[0]
+            for r in dc:
+                c = r.label.split('::', 1)[0]
+                if c != base:
+                    D.append((r.ln, 1, 'E205', "root prefix mismatch: '%s' != '%s'" % (c, base)))
+
+    return roots, D
+
+
+def lint_text(text):
+    return parse_text(text)[1]
+
+
+def collect_leaves(node, trail, picks):
+    for ch in node.children:
+        if ch.label.startswith(ASSERT):
+            picks.append((ch, trail + [ch.label]))
+        else:
+            collect_leaves(ch, trail + [ch.label], picks)
+
+
+def smoke_leaf(root):
+    node, trail = root, []
+    while node.children:
+        node = node.children[-1]
+        trail.append(node.label)
+        if node.label.startswith(ASSERT):
+            return node, trail
+    return None
+
+
+def effect_lines(node, depth, out):
+    for e in node.children:
+        out.append('%s+ %s' % ('    ' * depth, e.label))
+        effect_lines(e, depth + 1, out)
+
+
+def leaf_lines(path, roots, smoke, aligned=False):
+    out = []
+    for r in roots:
+        if aligned and r.draft:
+            continue
+        if smoke:
+            hit = smoke_leaf(r)
+            picks = [hit] if hit else []
+        else:
+            picks = []
+            collect_leaves(r, [], picks)
+        for node, trail in picks:
+            out.append('%s:%d: %s — %s' % (path, node.ln, r.label, ', '.join(trail)))
+            effect_lines(node, 1, out)
+    return out
+
+
+def diag_lines(path, D):
+    has_err = has_warn = False
+    out = []
+    for ln, col, code, msg in sorted(D, key=lambda d: (d[0], d[1], d[2])):
+        level = 'error' if code[0] == 'E' else 'warning'
+        if level == 'error':
+            has_err = True
+        else:
+            has_warn = True
+        out.append('%s:%d:%d: %s[%s]: %s' % (path, ln, col, level, code, msg))
+    return out, has_err, has_warn
+
+
+def lint_stream(path, text):
+    out, has_err, has_warn = diag_lines(path, lint_text(text))
+    if out:
+        sys.stdout.write('\n'.join(out) + '\n')
+    return has_err, has_warn
+
+
+# First backticked token of a list item: `- `orders/` — …` or `1. `cancel.tree``.
+ITEM = re.compile(r'^\s*(?:[-*]|\d+\.)\s+`([^`]+)`')
+ZOOM = re.compile(r'\bZoom:\s*`?(product|contract|code)\b')
+# Leaves per unit, per area and per home: what a human aligns in about five
+# minutes, one sitting and one working day. references/zoom.md explains them.
+BUDGET = (12, 80, 1000)
+WARN_CODES = ('A210', 'A211', 'A212')
+
+
+def read_budget(text):
+    for line in text.split('\n'):
+        if 'Budget:' in line:
+            nums = [int(n.replace(',', '')) for n in re.findall(r'\d[\d,]*', line.split('Budget:', 1)[1])]
+            if len(nums) >= 3:
+                return tuple(nums[:3])
+    return BUDGET
+
+
+def md_section(text, title):
+    """Returns (heading line, [(line, text)]) for the `## <title>` section."""
+    head, out, on = 0, [], False
+    for ln, line in enumerate(text.split('\n'), 1):
+        if line.startswith('## '):
+            on = line[3:].strip().lower() == title
+            if on:
+                head = ln
+            continue
+        if on:
+            out.append((ln, line))
+    return head, out
+
+
+def read_quiet(path):
+    try:
+        with open(path, encoding='utf-8') as fh:
+            return fh.read()
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def audit_home(home):
+    """Returns (findings, lint results, summary lines, unreadable paths)."""
+    F, L, S, bad = [], [], [], []
+    index = os.path.join(home, 'README.md')
+    itext = read_quiet(index)
+    if itext is None:
+        F.append((index, 1, 'A200', 'the home has no readable index'))
+        itext = ''
+    homes = {}          # sub-home -> index line, for a root index that splits homes
+    for ln, line in md_section(itext, 'homes')[1]:
+        m = ITEM.match(line)
+        if m and m.group(1).endswith('/') and '/' not in m.group(1)[:-1]:
+            homes.setdefault(m.group(1)[:-1], ln)
+    head, lines = md_section(itext, 'areas')
+    head = head or 1
+    listed = {}         # area -> index line
+    index_units = {}    # area -> {unit: (line, no tree)}, for a home without cards
+    for ln, line in lines:
+        m = ITEM.match(line)
+        if not m:
+            continue
+        tok = m.group(1)
+        if tok.endswith('/') and '/' not in tok[:-1]:
+            listed.setdefault(tok[:-1], ln)
+        elif tok.endswith('.tree') and tok.count('/') == 1:
+            a, u = tok.split('/')
+            listed.setdefault(a, ln)
+            index_units.setdefault(a, {})[u] = (ln, '(no tree)' in line)
+    zm = ZOOM.search(itext)
+    home_zoom = zm.group(1) if zm else None
+    unit_max, area_max, home_max = read_budget(itext)
+    total = 0
+
+    entries = sorted(os.listdir(home))
+    areas = [d for d in entries if not d.startswith('.') and os.path.isdir(os.path.join(home, d))
+             and d not in homes]
+    for f in entries:
+        if f.endswith('.tree'):
+            F.append((os.path.join(home, f), 1, 'A208', 'unit sits outside any area'))
+    for a, ln in sorted(listed.items()):
+        if a not in areas:
+            F.append((index, ln, 'A201', 'the index lists `%s/`, which has no folder' % a))
+
+    seen = {}           # root label -> (path, line)
+    for a in areas:
+        adir = os.path.join(home, a)
+        files = sorted(f for f in os.listdir(adir) if f.endswith('.tree'))
+        card = os.path.join(adir, 'README.md')
+        ctext = read_quiet(card)
+        if not files and a not in listed and ctext is None:
+            continue    # a plain folder, not an area
+        if files and a not in listed:
+            F.append((index, head, 'A202', 'folder `%s/` holds units the index does not list' % a))
+        if ctext is not None:
+            src, (chead, clines) = card, md_section(ctext, 'units')
+            units = {}
+            for ln, line in clines:
+                m = ITEM.match(line)
+                if m and m.group(1).endswith('.tree'):
+                    units[m.group(1).split('/')[-1]] = (ln, '(no tree)' in line)
+            zm = ZOOM.search(ctext)
+            zoom = zm.group(1) if zm else home_zoom
+        else:
+            src, chead, units, zoom = index, head, index_units.get(a), home_zoom
+        # An unlisted area without a card is already A202; its units need no A203 each.
+        if units is not None:
+            for f in files:
+                if f not in units:
+                    F.append((src, chead or 1, 'A203', '`%s/%s` is on disk but not listed' % (a, f)))
+            for u, (ln, no_tree) in sorted(units.items()):
+                if no_tree and u in files:
+                    F.append((src, ln, 'A205', '`%s` is marked (no tree) but has a file' % u))
+                elif not no_tree and u not in files:
+                    F.append((src, ln, 'A204', '`%s` is listed but has no file' % u))
+
+        trees = leaves = drafts = opens = oos = 0
+        for f in files:
+            path = os.path.join(adir, f)
+            text = read_quiet(path)
+            if text is None:
+                bad.append(path)
+                continue
+            roots, D = parse_text(text)
+            if D:
+                L.append((path, D))
+            unit_leaves = 0
+            for r in roots:
+                prefix = r.label.split('::', 1)[0] if '::' in r.label else None
+                if zoom != 'code' and prefix != a:
+                    F.append((path, r.ln, 'A206', 'root should start `%s::`' % a))
+                if r.label in seen:
+                    F.append((path, r.ln, 'A207', 'root repeats %s:%d' % seen[r.label]))
+                else:
+                    seen[r.label] = (path, r.ln)
+                picks = []
+                collect_leaves(r, [], picks)
+                trees += 1
+                unit_leaves += len(picks)
+                drafts += r.draft
+                # At code zoom a unit holds a whole type, so the budget binds each function tree.
+                if zoom == 'code' and len(picks) > unit_max:
+                    F.append((path, r.ln, 'A210', 'tree holds %d leaves; the budget is %d'
+                              % (len(picks), unit_max)))
+            leaves += unit_leaves
+            if zoom != 'code' and unit_leaves > unit_max:
+                F.append((path, 1, 'A210', 'unit holds %d leaves; the budget is %d'
+                          % (unit_leaves, unit_max)))
+            for line in text.split('\n'):
+                t = line.strip()
+                opens += t.startswith('// OPEN:')
+                oos += t.startswith('// OUT OF SCOPE:')
+        if leaves > area_max:
+            F.append((src, chead or 1, 'A211', 'area `%s/` holds %d leaves; the budget is %d'
+                      % (a, leaves, area_max)))
+        total += leaves
+        S.append('%s/  units %d · trees %d · leaves %d · drafts %d · open %d · out of scope %d'
+                 % (a, len(files), trees, leaves, drafts, opens, oos))
+    if total > home_max:
+        F.append((index, 1, 'A212', 'the home holds %d leaves; the budget is %d' % (total, home_max)))
+    for h, ln in sorted(homes.items()):
+        hdir = os.path.join(home, h)
+        if not os.path.isdir(hdir):
+            F.append((index, ln, 'A201', 'the index lists home `%s/`, which has no folder' % h))
+            continue
+        hF, hL, hS, hbad = audit_home(hdir)
+        F += hF
+        L += hL
+        S += ['%s/%s' % (h, line) for line in hS]
+        bad += hbad
+    return F, L, S, bad
+
+
+# --------------------------------------------------------------------------- #
+# Self-test                                                                    #
+# --------------------------------------------------------------------------- #
+
+def T(s):
+    return s[1:] if s[:1] == '\n' else s
+
+
+REST = T("""
+POST /api/transfers
+├── given unauthenticated
+│  └── it should return 401
+└── given authenticated
+   ├── when body is malformed
+   │  └── it should return 422 with validation errors
+   └── when body is valid
+      ├── given sender account not found
+      │  └── it should return 404
+      └── given sender account exists
+         ├── given insufficient balance
+         │  └── it should return 409
+         └── given sufficient balance
+            ├── given recipient not found
+            │  └── it should return 404
+            └── given recipient exists
+               └── it should create transfer
+                  ├── it should debit sender
+                  ├── it should credit recipient
+                  ├── it should persist transaction record
+                  ├── it should publish {TransferCompleted} event
+                  └── it should return 201
+""")
+
+CLAMP = T("""
+clamp
+├── when value is below minimum
+│  └── it should return minimum
+├── when value is above maximum
+│  └── it should return maximum
+└── when value is within range
+   └── it should return value unchanged
+""")
+
+NOTIF = T("""
+NotificationService::send
+├── given notifications_v2 disabled
+│  └── it should send via SMTP
+└── given notifications_v2 enabled
+   ├── when channel is email
+   │  └── it should send via SendGrid
+   ├── when channel is sms
+   │  ├── given phone number invalid
+   │  │  └── it should throw InvalidPhoneError
+   │  └── given phone number valid
+   │     └── it should send via Twilio
+   └── when channel is push
+      ├── given no registered devices
+      │  └── it should silently skip
+      └── given registered devices exist
+         └── it should send to all devices
+            ├── it should batch per platform
+            └── it should log delivery status
+""")
+
+ORDER = T("""
+onOrderPlaced
+├── given order ID is duplicate
+│  └── it should skip processing (idempotency)
+└── given order ID is new
+   ├── given inventory unavailable
+   │  └── it should place on backorder
+   │     ├── it should persist backorder record
+   │     └── it should publish {OrderBackordered} event
+   └── given inventory available
+      └── it should fulfill order
+         ├── it should reserve inventory
+         ├── it should charge payment method
+         ├── it should create shipment record
+         ├── it should publish {OrderFulfilled} event
+         └── it should schedule delivery notification
+""")
+
+COMMENTS = T("""
+createUser
+├── given unauthenticated
+│  └── it should return 401
+// OUT OF SCOPE: expired tokens -- covered by auth middleware spec
+└── given authenticated
+   └── it should create user
+""")
+
+MULTI = T("""
+UserService::create
+├── given unauthenticated
+│  └── it should return 401
+└── given authenticated
+   └── it should create user
+
+
+UserService::delete
+├── given unauthenticated
+│  └── it should return 401
+└── given authenticated
+   └── it should delete user
+""")
+
+MARKERS = T("""
+orders::cancel order [web, ios]
+// DRAFT: from src/orders -- not aligned
+// OPEN: does a cancelled order keep its loyalty points?
+// OUT OF SCOPE: partial cancellation -- not offered yet
+├── given the order has shipped
+│  └── it should offer no cancel action
+└── when the customer cancels an unshipped order
+   └── it should show the order as "Cancelled"
+
+
+orders::cancel order [ios]
+└── when the customer cancels offline
+   └── it should queue the cancellation and show it as pending
+""")
+
+CLEAN = [
+    ('REST', REST), ('clamp', CLAMP), ('NotificationService', NOTIF),
+    ('onOrderPlaced', ORDER), ('Comments', COMMENTS), ('MultipleTrees', MULTI),
+    ('Markers', MARKERS),
+]
+
+# Common Mistakes: WRONG must produce its code, CORRECT must not.
+W1 = T("""
+root
+├── given authenticated
+├── when body is valid
+   └── it should succeed
+""")
+C1 = T("""
+root
+├── given authenticated
+└── when body is valid
+   └── it should succeed
+""")
+W2 = T("""
+root
+└── given authenticated
+│  └── it should succeed
+""")
+C2 = T("""
+root
+└── given authenticated
+   └── it should succeed
+""")
+W3 = T("""
+root
+└── parent
+    └── child
+""")
+C3 = T("""
+root
+└── parent
+   └── child
+""")
+W4 = T("""
+root
+├── given user is authenticated.
+""")
+C4 = T("""
+root
+├── given user is authenticated
+""")
+W5 = T("""
+root
+├── given authenticated
+ │  └── leaf
+""")
+C5 = T("""
+root
+├── given authenticated
+│  └── leaf
+""")
+
+# Targeted fixtures for the remaining codes.
+E102F = T("""
+root
+└── given a
+      └── it should x
+""")
+E105F = T("""
+root
+├── given a
+   └── it should x
+└── given b
+   └── it should y
+""")
+E106F = T("""
+root
+├── given a
+ │  └── it should x
+└── given b
+   └── it should y
+""")
+E107F = T("""
+root
+└── given a
+   └─ it should b
+""")
+E108F = T("""
+root
+├── given a
+x  └── it should x
+""")
+E109F = T("""
+root
+└── given a
+   └── it should b
+another root
+""")
+E110F = T("""
+root
+└── given a
+
+root2
+└── given b
+""")
+E201F = T("""
+root
+└── foobar
+""")
+E202F = T("""
+root
+└── it should x
+   └── given y
+      └── it should z
+""")
+E203F = T("""
+root
+└── given a
+""")
+E205F = T("""
+Svc::create
+└── given a
+   └── it should x
+
+
+Other::delete
+└── given b
+   └── it should y
+""")
+W301F = T("""
+root
+├── given a
+│  └── it should x
+└── given a
+   └── it should x
+""")
+W302F = T("""
+Svc::create
+└── given a
+   └── it should x
+
+
+plain root x
+└── given c
+   └── it should y
+""")
+W304F = T("""
+root
+└── it should a
+   └── it should b
+      └── it should c
+""")
+
+PRESENT = [
+    ('WRONG#1 tee-for-last', W1, [('E103', 3)]),
+    ('WRONG#2 pipe-below-corner', W2, [('E104', 3)]),
+    ('WRONG#3 four-space', W3, [('E101', 3)]),
+    ('WRONG#4 period', W4, [('E204', 2)]),
+    ('WRONG#5 misaligned-pipe', W5, [('E106', 3)]),
+    ('E102 level-jump', E102F, [('E102', 3)]),
+    ('E105 missing-pipe', E105F, [('E105', 3)]),
+    ('E106 misaligned-pipe', E106F, [('E106', 3)]),
+    ('E107 malformed-connector', E107F, [('E107', 3)]),
+    ('E108 bad-prefix', E108F, [('E108', 3)]),
+    ('E109 stray-root', E109F, [('E109', 4)]),
+    ('E110 wrong-separator', E110F, [('E110', 3)]),
+    ('E201 bad-keyword', E201F, [('E201', 2)]),
+    ('E202 branch-under-assertion', E202F, [('E202', 3)]),
+    ('E203 dangling-branch', E203F, [('E203', 2)]),
+    ('E205 container-mismatch', E205F, [('E205', 6)]),
+    ('W301 duplicate-sibling', W301F, [('W301', 4)]),
+    ('W302 mixed-root-style', W302F, [('W302', 6)]),
+    ('W304 deep-assertion', W304F, [('W304', 4)]),
+]
+
+ABSENT = [
+    ('CORRECT#1', C1, 'E103'),
+    ('CORRECT#2', C2, 'E104'),
+    ('CORRECT#3', C3, 'E101'),
+    ('CORRECT#4', C4, 'E204'),
+    ('CORRECT#5', C5, 'E106'),
+]
+
+
+# `paths` fixtures: (name, text, smoke, leaf line numbers, total output lines).
+PATHS = [
+    ('REST full', REST, False, [3, 6, 9, 12, 15, 17], 11),
+    ('REST smoke', REST, True, [17], 6),
+    ('clamp smoke', CLAMP, True, [7], 1),
+    ('multi full', MULTI, False, [3, 5, 10, 12], 4),
+    ('multi smoke', MULTI, True, [5, 12], 2),
+    ('markers smoke', MARKERS, True, [8, 13], 2),
+]
+
+# The first MARKERS tree is a draft, so --aligned keeps only the second.
+ALIGNED = [('markers aligned', MARKERS, [13])]
+
+CLAMP_SMOKE = 't:7: clamp — when value is within range, it should return value unchanged'
+
+
+AUDIT_CLEAN = {
+    'README.md': '# Behaviours\n\n## Settings\n\n- Zoom: product.\n\n## Areas\n\n- `tickets/` — tickets.\n- `svc/` — services.\n',
+    'tickets/README.md': '# Tickets\n\n## Units\n\n1. `close-ticket.tree`\n2. `merge-tickets.tree` (no tree)\n',
+    'tickets/close-ticket.tree': MARKERS.replace('orders::cancel order', 'tickets::close ticket'),
+    'svc/README.md': '# Services\n\nZoom: code. Depth: exhaustive.\n\n## Units\n\n1. `order-service.tree`\n',
+    'svc/order-service.tree': 'OrderService::cancel\n└── when the order is paid\n   └── it should refund it\n',
+}
+
+AUDIT_BROKEN = {
+    'README.md': '# Behaviours\n\n## Areas\n\n- `orders/` — orders.\n- `ghost/` — gone.\n',
+    'loose.tree': 'orders::loose\n└── when x\n   └── it should y\n',
+    'orders/README.md': '# Orders\n\n## Units\n\n1. `cancel-order.tree`\n2. `refund.tree` (no tree)\n3. `missing.tree`\n',
+    'orders/cancel-order.tree': 'orders::cancel order\n└── when x\n   └── it should y\n',
+    'orders/refund.tree': 'orders::refund\n└── when x\n   └── it should y\n',
+    'orders/extra.tree': 'billing::extra\n└── when x\n   └── it should y\n',
+    'orders/dup.tree': 'orders::cancel order\n└── when z\n   └── it should w\n',
+    'stray/x.tree': 'stray::x\n└── when x\n   └── it should y\n',
+}
+
+AUDIT_WANT = ['A201', 'A202', 'A203', 'A203', 'A204', 'A205', 'A206', 'A207', 'A208']
+
+# The clean home over a tight budget: tickets holds 3 leaves in one unit, the home 4.
+AUDIT_BUDGET = dict(AUDIT_CLEAN)
+AUDIT_BUDGET['README.md'] = AUDIT_CLEAN['README.md'].replace(
+    '- Zoom: product.\n', '- Zoom: product.\n- Budget: 2 leaves per unit, 2 per area, 3 per home.\n')
+AUDIT_BUDGET_WANT = ['A210', 'A211', 'A212']
+
+# A root index that splits homes: the clean home as frontend/, a contract home as backend/.
+AUDIT_SPLIT = {'frontend/' + k: v for k, v in AUDIT_CLEAN.items()}
+AUDIT_SPLIT.update({
+    'README.md': '# Behaviours\n\n## Homes\n\n- `frontend/` — product.\n- `backend/` — contract.\n- `ghost/` — gone.\n',
+    'backend/README.md': '# Backend\n\n## Settings\n\n- Zoom: contract.\n\n## Areas\n\n- `orders/` — orders.\n',
+    'backend/orders/README.md': '# Orders\n\n## Units\n\n1. `post-cancel.tree`\n',
+    'backend/orders/post-cancel.tree': 'orders::POST /orders/:id/cancel\n└── given no session\n   └── it should return 401\n',
+})
+AUDIT_SUMMARY = ['svc/  units 1 · trees 1 · leaves 1 · drafts 0 · open 0 · out of scope 0',
+                 'tickets/  units 1 · trees 2 · leaves 3 · drafts 1 · open 1 · out of scope 1']
+AUDIT_SPLIT_SUMMARY = ['backend/orders/  units 1 · trees 1 · leaves 1 · drafts 0 · open 0 · out of scope 0'] + [
+    'frontend/' + line for line in AUDIT_SUMMARY]
+
+
+def audit_fixture(files):
+    import tempfile
+    tmp = tempfile.mkdtemp()
+    for rel, text in files.items():
+        path = os.path.join(tmp, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as fh:
+            fh.write(text)
+    return tmp
+
+
+def run_self_test():
+    import shutil
+    passed = 0
+    failed = 0
+    msgs = []
+    for name, files, want, summary in (('audit clean', AUDIT_CLEAN, [], AUDIT_SUMMARY),
+                                       ('audit broken', AUDIT_BROKEN, AUDIT_WANT, None),
+                                       ('audit budget', AUDIT_BUDGET, AUDIT_BUDGET_WANT, None),
+                                       ('audit split', AUDIT_SPLIT, ['A201'], AUDIT_SPLIT_SUMMARY)):
+        tmp = audit_fixture(files)
+        F, L, S, bad = audit_home(tmp)
+        shutil.rmtree(tmp)
+        got = sorted(code for _, _, code, _ in F)
+        if got != want or L or bad or (summary is not None and S != summary):
+            failed += 1
+            msgs.append('FAIL %s: codes %s, lint %s, summary %s' % (name, got, L, S))
+        else:
+            passed += 1
+    for name, text, smoke, want, total in PATHS:
+        out = leaf_lines('t', parse_text(text)[0], smoke)
+        got = [int(o.split(':')[1]) for o in out if o.startswith('t:')]
+        if got != want or len(out) != total:
+            failed += 1
+            msgs.append('FAIL paths %s: leaves %s of %d lines, want %s of %d'
+                        % (name, got, len(out), want, total))
+        else:
+            passed += 1
+    for name, text, want in ALIGNED:
+        out = leaf_lines('t', parse_text(text)[0], False, aligned=True)
+        got = [int(o.split(':')[1]) for o in out if o.startswith('t:')]
+        if got != want:
+            failed += 1
+            msgs.append('FAIL paths %s: leaves %s, want %s' % (name, got, want))
+        else:
+            passed += 1
+    out = leaf_lines('t', parse_text(CLAMP)[0], True)
+    if out != [CLAMP_SMOKE]:
+        failed += 1
+        msgs.append('FAIL paths sentence: got %r' % out)
+    else:
+        passed += 1
+    for name, text in CLEAN:
+        D = lint_text(text)
+        if D:
+            failed += 1
+            msgs.append('FAIL %s: expected clean, got %s'
+                        % (name, [(c, ln) for ln, col, c, m in D]))
+        else:
+            passed += 1
+    for name, text, exp in PRESENT:
+        D = lint_text(text)
+        got = {(c, ln) for ln, col, c, m in D}
+        miss = [e for e in exp if e not in got]
+        if miss:
+            failed += 1
+            msgs.append('FAIL %s: missing %s; got %s' % (name, miss, sorted(got)))
+        else:
+            passed += 1
+    for name, text, code in ABSENT:
+        D = lint_text(text)
+        got = {c for ln, col, c, m in D}
+        if code in got:
+            failed += 1
+            msgs.append('FAIL %s: code %s should be absent; got %s'
+                        % (name, code, sorted(got)))
+        else:
+            passed += 1
+    for m in msgs:
+        print(m)
+    print('self-test: %d passed, %d failed' % (passed, failed))
+    return 0 if failed == 0 else 1
+
+
+# --------------------------------------------------------------------------- #
+# CLI                                                                          #
+# --------------------------------------------------------------------------- #
+
+USAGE = '''usage: trees lint [--strict] <file|dir>...
+       trees paths [--smoke] [--aligned] <file|dir>...
+       trees audit [--strict] <home>
+       trees --self-test
+'''
+
+FLAGS = {'lint': ('--strict',), 'paths': ('--smoke', '--aligned'), 'audit': ('--strict',)}
+
+
+def collect(targets):
+    files = []
+    for t in targets:
+        if t != '-' and os.path.isdir(t):
+            for dp, dn, fn in os.walk(t):
+                dn.sort()
+                files.extend(os.path.join(dp, f) for f in sorted(fn) if f.endswith('.tree'))
+        else:
+            files.append(t)
+    return files
+
+
+def read(f):
+    """Returns (path, text), or None after reporting the failure."""
+    try:
+        if f == '-':
+            return '<stdin>', sys.stdin.buffer.read().decode('utf-8')
+        with open(f, 'rb') as fh:
+            return f, fh.read().decode('utf-8')
+    except FileNotFoundError:
+        sys.stderr.write('trees: %s: no such file\n' % f)
+    except UnicodeDecodeError:
+        sys.stderr.write('trees: %s: invalid UTF-8\n' % f)
+    except OSError as e:
+        sys.stderr.write('trees: %s: %s\n' % (f, e))
+    return None
+
+
+def main(argv):
+    args = argv[1:]
+    if args == ['--self-test']:
+        return run_self_test()
+    if not args or args[0] not in FLAGS:
+        sys.stderr.write(USAGE)
+        return 2
+    cmd = args[0]
+    opts = set()
+    targets = []
+    for a in args[1:]:
+        if a.startswith('--'):
+            if a not in FLAGS[cmd]:
+                sys.stderr.write('trees: unknown option %s for %s\n' % (a, cmd))
+                sys.stderr.write(USAGE)
+                return 2
+            opts.add(a)
+        else:
+            targets.append(a)
+    if not targets:
+        sys.stderr.write(USAGE)
+        return 2
+
+    if cmd == 'audit':
+        return audit_main(targets, '--strict' in opts)
+
+    rc = 0
+    for f in collect(targets):
+        got = read(f)
+        if got is None:
+            rc = max(rc, 2)
+            continue
+        path, text = got
+        if cmd == 'lint':
+            has_err, has_warn = lint_stream(path, text)
+            if has_err or ('--strict' in opts and has_warn):
+                rc = max(rc, 1)
+            continue
+        roots, D = parse_text(text)
+        if any(code[0] == 'E' for _, _, code, _ in D):
+            sys.stderr.write('trees: %s: lint errors; run trees lint %s\n' % (path, path))
+            rc = max(rc, 1)
+            continue
+        out = leaf_lines(path, roots, '--smoke' in opts, '--aligned' in opts)
+        if out:
+            sys.stdout.write('\n'.join(out) + '\n')
+    return rc
+
+
+def audit_main(targets, strict):
+    if len(targets) != 1 or not os.path.isdir(targets[0]):
+        sys.stderr.write('trees: audit takes one home directory\n')
+        sys.stderr.write(USAGE)
+        return 2
+    F, L, S, bad = audit_home(targets[0])
+    rc = 0
+    out = []
+    for path, D in L:
+        lines, has_err, has_warn = diag_lines(path, D)
+        out.extend(lines)
+        if has_err or (strict and has_warn):
+            rc = 1
+    for path, ln, code, msg in sorted(F):
+        warn = code in WARN_CODES
+        if not warn or strict:
+            rc = 1
+        out.append('%s:%d:1: %s[%s]: %s' % (path, ln, 'warning' if warn else 'error', code, msg))
+    for path in bad:
+        sys.stderr.write('trees: %s: cannot read as UTF-8\n' % path)
+        rc = 2
+    out.extend(S)
+    if out:
+        sys.stdout.write('\n'.join(out) + '\n')
+    return rc
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))

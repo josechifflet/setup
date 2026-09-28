@@ -47,7 +47,7 @@ The guide loaded in step 1 owns the design brief format, the `write_html` rules,
 - Read structure — `get_tree_summary` first, then `get_children`, `get_node_info`; `get_tokens` for the token set; `get_jsx`, `get_computed_styles` and `get_fill_image` only when exact values are needed.
 - Look — `get_screenshot`. Default scale 1; scale 2 only to read small text.
 - Create — `create_file`, `create_page`, `create_artboard`, `write_html`, `create_tokens`.
-- Change — `update_styles`, `set_text_content`, `rename_nodes`, `move_nodes`, `duplicate_nodes`, `set_tokens`, `delete_nodes`.
+- Change — `update_styles`, `set_text_content`, `rename_nodes`, `rename_pages`, `move_nodes`, `duplicate_nodes`, `set_tokens`, `delete_nodes`.
 - Search — `find_nodes` by computed style, token or text; the only mechanical way to find a hardcoded value.
 - Collaborate — `list_comment_threads`, `list_comment_thread_authors`, `get_comment_thread`, `set_comment_thread_status`.
 - Deliver — `export` for image, video and PDF; `export_combined_pdf`.
@@ -58,6 +58,7 @@ The guide loaded in step 1 owns the design brief format, the `write_html` rules,
 - The design brief goes out with the L10 structural plan, never instead of it.
 - `layer-name` on every element a human would point at (L4). A repeated element is an `<x-paper-clone node-id="…" />` of its canonical copy, never a second writing of the same HTML (L5).
 - `get_screenshot` takes a `nodeId`: the artboard or the group, never "the page".
+- `update_styles` returns the styles it dropped under `ignoredStyles`. Read that key after every call; a style listed there did not apply.
 
 ### Targeting
 
@@ -108,7 +109,7 @@ Eleven laws. The concern in each is tool-independent; only the mechanism below i
 - The request points at the selection, or asks for variants of it → Tweak, `references/iterate.md`.
 - "Export", "share", a deck, a PNG → Present, `references/iterate.md`.
 - Keeping the two identical over time — what changed since the last release, a re-mirror, drift, the sync ritual, the review loop → `references/mirroring.md`.
-- A single rename, one artboard, one token → do it, then run the checks its level could break: C5 for an artboard, C8 and C11 for a layer, C10 for a token. In a mirrored file, only on a design-owned page, and never by editing an existing token.
+- A single rename, one artboard, one token → do it, then run the checks its level could break: C3 for a page, C5 for an artboard, C8 and C11 for a layer, C10 for a token. In a mirrored file, only on a design-owned page, and never by editing an existing token.
 
 ## Build
 
@@ -121,7 +122,7 @@ Nine steps.
 5. **Foundations before pixels.**
    - The file has tokens → use them by name, and add none that duplicates a value.
    - The file has none and the work is more than one artboard → `create_tokens` first: the minimal set that covers every namespace, opacity included, in the order the tool requires. Add a `description` where a token's role is not obvious from its name.
-   - A tint is `color-mix(var(--color-primary) 40%, transparent)`, never a new token.
+   - A tint is `color-mix(var(--color-primary) 40%, transparent)`, never a new colour token. A percentage used twice is an `--opacity-*` token: `color-mix(var(--color-primary) var(--opacity-muted), transparent)`.
    - Every `--font-*` value must be in `fontFamilies`. After the first text write, `get_computed_styles` on it must show the family first (`"Geist", system-ui, sans-serif`): Paper stores a family it did not apply as a bare `system-ui, sans-serif`, silently.
 6. **Definitions before screens.** Every repeated element gets its one canonical copy first: a cell of its component's sheet (L5) — on the components page, or on the prototype page in a mirrored file, where the components page is code-owned (L2). Everything later is a clone of it, never a second writing of the same HTML.
 7. **Screens from definitions.** `create_artboard` with its final name and ordinal; mobile boards get the status bar from the guide. `write_html` one visual group per call, `layer-name` on every element. Check where the board landed and restore the grid only if the order broke (L8).

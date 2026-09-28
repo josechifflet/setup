@@ -30,7 +30,7 @@ Create only the pages the project has. `00 · Index` earns its place from the mo
 
 A flow is the set of screens a user moves through for one job: sign-in, checkout, settings. It is the right unit for a page — not one screen, and not the whole product.
 
-- **Not one page per screen.** No tool renames, reorders or deletes a page, so every page an agent makes is permanent until someone removes it by hand. A hundred screen pages are a hundred manual cleanups.
+- **Not one page per screen.** No tool reorders or deletes a page, so every page an agent makes is permanent until someone removes it by hand. A hundred screen pages are a hundred manual cleanups.
 - **Not one page for everything.** `get_basic_info` returns every artboard of the page on each call. Automatic placement fills one ever-larger canvas, and two purposes share one list.
 - **What a flow page buys through the MCP.** `get_basic_info` stays small. `find_nodes`, `list_comment_threads`, `list_comment_thread_authors` and `export` all take a `pageId`, so "the raw colours in checkout" or "the open comments on sign-in" is one call. New and duplicated boards land in a small canvas. Agents can work one page each, in parallel, without meeting on the canvas.
 - **Split** a page when it holds two flows, or when it passes about forty artboards. Split by sub-flow, never by state.
@@ -72,7 +72,7 @@ Not justified: a variant of a screen (that is an artboard), a screen (that is an
 
 ## Numeric prefixes
 
-Pages cannot be reordered through the MCP, so a numeric prefix is the only ordering an agent can impose. Use one when the file has more than five pages, or when the user already uses one. Once one page carries a prefix, every page carries one. Leave gaps of ten between bands so a flow can be inserted without renumbering the file.
+Pages cannot be reordered through the MCP, so a numeric prefix is the only ordering an agent can impose. Use one when the file has more than five pages, or when the user already uses one. Once one page carries a prefix, every page carries one; `rename_pages` adds it to the existing pages in one batch, after a yes (L10). Leave gaps of ten between bands so a flow can be inserted without renumbering the file.
 
 With five pages or fewer, plain purpose names are cleaner and are fully compliant.
 
@@ -84,4 +84,4 @@ With five pages or fewer, plain purpose names are cleaner and are fully complian
 
 ## The index page
 
-One artboard, desktop width, holding: the project name, one line on what the file covers, the page list with one line and one owner each, the release the code-owned pages show, copied from the manifest's `Release shown`, any live token redesign file, the status legend used in artboard names, and the links out — repo, tracker, deployed URL. Page names cannot change through the MCP, so the release lives here, never in a page name.
+One artboard, desktop width, holding: the project name, one line on what the file covers, the page list with one line and one owner each, the release the code-owned pages show, copied from the manifest's `Release shown`, any live token redesign file, the status legend used in artboard names, and the links out — repo, tracker, deployed URL. The release changes with every re-mirror and a page name is a purpose, so the release lives here, never in a page name.

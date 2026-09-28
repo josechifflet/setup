@@ -1,10 +1,10 @@
 # What the Paper MCP can and cannot do
 
-The tool descriptions are the reference for parameters, defaults and formats, and this file does not repeat them. It holds what they leave out: what no tool does, what was seen live, and where the guide and the tools disagree. Verified on 2026-09-24; lines marked _exercised_ were run live in a scratch file that day. Every tool mechanism the laws in `SKILL.md` rely on traces to a line here or to a tool description; the owner and prototype rules are policy, not tool facts. A tool result that contradicts a line below wins; say so in the ledger.
+The tool descriptions are the reference for parameters, defaults and formats, and this file does not repeat them. It holds what they leave out: what no tool does, what was seen live, and where the guide and the tools disagree. Checked against the tool descriptions on 2026-09-28; lines marked _exercised_ were run live in a scratch file on 2026-09-24. Every tool mechanism the laws in `SKILL.md` rely on traces to a line here or to a tool description; the owner and prototype rules are policy, not tool facts. A tool result that contradicts a line below wins; say so in the ledger.
 
 ## What no tool does
 
-- Rename, reorder or delete a page. Page order is the user's; a numeric prefix is the only order an agent controls.
+- Reorder or delete a page. Page order is the user's; a numeric prefix is the only order an agent controls.
 - Change the page the user is viewing. `open_file` applies its `pageId` only when the file was not open yet.
 - `open_file` on a file that is not open yet opens it and makes it the active file: the user's view moves there. _Exercised._
 - Delete a file.

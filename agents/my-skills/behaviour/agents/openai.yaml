@@ -1,0 +1,5 @@
+interface:
+  display_name: "Behaviour"
+  short_description: "Behaviour trees humans align on and agents check"
+policy:
+  allow_implicit_invocation: false

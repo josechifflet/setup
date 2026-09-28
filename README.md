@@ -1,6 +1,6 @@
 # setup
 
-My agent setup for Claude Code, Codex, Cursor, Grok and opencode. It holds one set of rules, six subagents per tool, a git guard hook and 14 skills.
+My agent setup for Claude Code, Codex, Cursor, Grok and opencode. It holds one set of rules, six subagents per tool, a git guard hook and 15 skills.
 
 ## Install
 
@@ -46,6 +46,7 @@ The models, login method and themes are mine. Edit `claude/settings.json`, `code
 
 Mine, under the repo's MIT license:
 
+- `behaviour`: writes behaviour trees people align on, then audits, checks and verifies the code against them. Its `verify` mode uses `typesafe-ai`.
 - `bet`: plans test coverage as a Branching Expectation Tree.
 - `context-doctor`: trims AGENTS.md, CLAUDE.md, rules and skills to what earns its tokens.
 - `handoff`: compacts a conversation into a handoff document and a kickoff prompt.
