@@ -5,12 +5,12 @@
 3. Done is the request met and checked. Then report and stop. Run no extra review, rating or polish round unless I ask for one.
 4. Write short, plain sentences, and lead with the result. When I ask for a review or an analysis, list every finding, ranked. Answer in English.
 5. Keep going when a step does not need me. Ask only when you cannot continue without me, or before a destructive step: deleting data or changing anything outside this repository.
-6. Work directly, with the fewest subagents needed.
+6. Work directly, with the fewest subagents needed. Search with the grep, glob and read tools yourself, not through the task tool.
 
 # Git
 
 1. Read git freely. Run `add`, `commit` and `push` only after I ask; one ask covers a run of work.
-2. Write commit messages as Conventional Commits, `type(scope): summary`, with no `Generated with` or `Co-Authored-By` trailer.
+2. Write commit messages as Conventional Commits, `type(scope): summary`.
 3. Run no other git write, even when I ask. Give me the exact commands instead.
 4. You and every subagent stay on the branch and checkout the session started in. Never propose a branch, a worktree or a PR.
 5. No hook runs here. A deny list refuses the destructive forms, and these rules bind the rest. When it refuses, try no other spelling.
