@@ -1,23 +1,25 @@
 # User Preferences
 
-1. Check as you go. After each change, run the narrowest check that proves it: one test file, the typecheck for the touched package, or a screenshot of the changed screen. Run the full gate of lint, format, typecheck, test and build once, at the end.
-2. Scope a check to the files you changed. Run a whole suite when the user says so, or when the change touches what every path reads. Name each check you ran and its result. A subagent may run a scoped check; the full gate runs in the main session.
-3. Use a skill when its description fits the task. Where a skill disagrees with the user's request or a subagent's brief, the request or the brief wins.
-4. Write short sentences. One idea per sentence. Active voice. The same word for the same thing every time. Answer in English.
-5. Reply format to the user: first line is an action, or what you need from the user when work waits on them; number the steps; restate your position each turn; one topic; cap a status list at 5. List every finding, ranked, when the user asks for a review, an audit or an analysis. Write in full when the reader asks for an explanation, when a destructive action is near, when debugging has stalled, or when two rules conflict.
-6. Comment why, not how, and only on code you change. Earn a comment with a business rule, a hazard or a contract. Every comment carries what the code cannot say.
-7. Write a report when the user asks for one: ask where it goes, then 50 lines. Use `#`, `-`, `1.` and fences. Keep every list flat, put prose where a table would go, and leave every line unwrapped.
-8. Run git reads any time: `status`, `diff`, `log`, `show`, `blame`, `grep`, `ls-files`, `rev-parse`, and the list forms of `branch`, `tag`, `remote`, `stash` and `worktree`. Run `add`, `commit` and `push` once the user asks for them; one ask covers a run of work. Write commit messages as Conventional Commits, `type(scope): summary`, subject and body only, with no `Generated with` or `Co-Authored-By` trailer.
-9. Never run any other git write, even when asked. That includes `commit --amend`, a push that forces or deletes, `fetch`, `pull`, `merge`, `rebase`, `reset`, `restore`, `checkout`, `switch`, `stash`, `clean`, and any new or deleted branch, tag or worktree. Every route counts: `wt`, `EnterWorktree`, `isolation: "worktree"`, `gh pr checkout`, `gh pr merge`, `gh repo sync`, a script, an alias, a variable, `eval` and `sh -c`. Other `gh` commands run free. Leave a PR, a split and a workflow for the user to propose. You and every subagent stay on the branch and checkout the session started in, plans and plan phases included. Never propose or ask for a branch or a worktree.
-10. When the work needs another git write, stop and give the user the exact commands. A hook blocks those writes but misses dynamic spellings; the rule binds you, not the hook. Report a block once, with its reason, follow the next step it names, and try no other spelling.
-11. When a step doesn't need the user, keep going and put status in the same message as the next action. Stop to ask only when you can't continue without the user, or before a destructive step. Deleting a finished plan file is not one.
-12. Done is the request met and checked, as rules 1 and 2 say. Then report and stop. Add no scope or tooling the request did not name.
+1. Make the smallest change that meets the request. Add no scope, files, tests or tooling I did not name.
+2. After each change, run the narrowest check that proves it: one test file, the typecheck for the touched package, or a screenshot of the changed screen. Run the full gate of lint, format, typecheck, test and build once, at the end, in this session. Name each check you ran and its result.
+3. Edit files with Edit and Write, not with `sed -i`, python or heredocs, so `/rewind` can undo the change.
+4. Done is the request met and checked. Then report and stop. Run no extra review, rating or polish round unless I ask for one.
+5. Comment why, not how, and only on code you change.
+6. Write short, plain sentences, and lead with the result. When I ask for a review or an analysis, list every finding, ranked. Answer in English.
+7. Ask only when you cannot continue without me, or before a destructive step.
 
-# Subagents (main session only)
+# Git
 
-1. Work here by default. Delegate when two or more pieces can run at once on separate files, or when a read-only sweep would flood this context and you need only its summary. Keep here a one-file edit, sequential steps, a lookup you can grep, and any git write.
-2. Brief a subagent as a colleague who has none of this conversation: the goal and why, the files, what you already know, the check that proves it done, and the return shape. Split a sweep larger than about four questions across parallel explorers.
-3. Judge the returned files, not the report. Treat an `UNCONFIRMED:` line as unknown and an `UNDONE:` line as work still owed. Answer a `DECIDE:` fork, or ask the user when the choice is theirs. Correct a wrong `ASSUMED:` line. When an agent hits `maxTurns`, carry its `UNDONE:` into your report; do not resume it. Re-brief a wrong brief once, then finish here what comes back undone.
-4. Only `reviewer` reviews; brief no other agent to review, audit or re-check a change. Spawn it when the user asks for a review, or before you report a multi-file change to money, auth, persistence or concurrency code. Fix its BLOCKER and MAJOR findings here, and list the MINOR ones. Prove a fix with a check, not with another review.
-5. Spawn `planner` when the work has two or more stages that must each land and pass before the next, or will likely outlast this context window. When in doubt, skip it. On `NO PLAN:`, do the work without one. Work the plan's `Next:` phase under its `Rules:` line, hand a phase that splits into parallel writes to `orchestrator`, and send a BLOCKED plan back to `planner`. List a check that needs a person or hardware in your report; do not simulate it.
-6. A plan lives at `~/.local/state/plans/<repo>/<slug>-<session>.md`, where `<session>` is this conversation's session identifier. Name the plan path in your status. After compaction, reread the plan this conversation names, else the one in this repo's folder that ends in this session identifier. In a new session, list this repo's folder and ask which when there are several.
+1. Read git freely. Run `add`, `commit` and `push` only after I ask; one ask covers a run of work.
+2. Write commit messages as Conventional Commits, `type(scope): summary`, with no `Generated with` or `Co-Authored-By` trailer.
+3. Run no other git write, even when I ask. Give me the exact commands instead.
+4. You and every subagent stay on the branch and checkout the session started in. Never propose a branch, a worktree or a PR.
+5. A hook enforces these rules. When it blocks you, follow its message and try no other spelling.
+
+# Subagents
+
+1. Work in this session by default. Delegate only a read-only sweep that would flood this context, or independent edits to separate files.
+2. Brief a subagent with the goal, the files, what you already know, and the check that proves it done.
+3. Judge a subagent by the files it changed or cites, not by its report. Treat `UNCONFIRMED:` as unknown and `UNDONE:` as work still owed.
+4. Spawn `reviewer` when I ask for a review, or before you report a multi-file change to money or auth code. Fix its BLOCKER and MAJOR findings, list the MINOR ones, then stop.
+5. Run the Workflow tool only when I ask for a workflow.

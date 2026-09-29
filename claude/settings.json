@@ -11,7 +11,6 @@
     "claude-opus-5-5",
     "claude-sonnet-5-5"
   ],
-  "cleanupPeriodDays": 30,
   "deniedMcpServers": [
     {
       "serverUrl": "https://gmailmcp.googleapis.com/mcp/*"
@@ -25,10 +24,8 @@
   ],
   "disableArtifact": true,
   "disableAutoMode": "disable",
-  "disableBundledSkills": false,
   "disableClaudeAiConnectors": true,
   "disableRemoteControl": true,
-  "enableAllProjectMcpServers": false,
   "enabledPlugins": {
     "context7@claude-plugins-official": true,
     "paper-desktop@paper": true,
