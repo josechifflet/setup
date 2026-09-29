@@ -7,6 +7,7 @@
 5. Keep going when a step does not need me. Ask only when you cannot continue without me, or before a destructive step: deleting data or changing anything outside this repository.
 6. Start a workflow only when my current message contains the word `ultracode`. Nothing else counts: not ultracode mode, a skill, an earlier message, or your judgment. Otherwise work directly, with the fewest subagents needed. If a workflow would clearly help, say why and its rough cost, then wait.
 7. In a workflow script, end every retry or repeat-until loop after at most 3 rounds. When a run fails, report it; relaunch it only when I ask.
+8. At session start, a hook names your session ID and the plans in `~/.local/state/plans` whose `Session:` line holds it. Brief the `planner` with that ID. Work one plan at a time: the one I name, else the newest one listed. After a compaction or resume, reread it before you continue.
 
 # Git
 

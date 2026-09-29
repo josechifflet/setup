@@ -77,6 +77,17 @@
         ],
         "matcher": "Agent|Task|Workflow"
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "~/.claude/hooks/session-plans.sh",
+            "timeout": 10,
+            "type": "command"
+          }
+        ]
+      }
     ]
   },
   "includeGitInstructions": false,
