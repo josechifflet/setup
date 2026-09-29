@@ -92,6 +92,7 @@
       "effortLevel": "xhigh"
     }
   },
+  "outputStyle": "Concise",
   "permissions": {
     "allow": [
       "Bash(git status)",
@@ -164,5 +165,6 @@
   "voice": {
     "enabled": true,
     "mode": "hold"
-  }
+  },
+  "workflowSizeGuideline": "small"
 }
