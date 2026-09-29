@@ -21,7 +21,7 @@ default_reasoning_effort = "high"
 [features]
 telemetry = false
 feedback = false
-# The researcher subagent fetches pages by URL; web_fetch ships off by default.
+# Fetch pages by URL; web_fetch ships off by default.
 web_fetch = true
 
 # Cross-session memory stays off. Remote settings turn memory_v2 on for this
@@ -50,11 +50,11 @@ timeout_secs = 120.0
 permission_mode = "ask"
 
 # Decouple from Claude Code AND Cursor — Grok scans only its own native sources.
-# Skills come from ~/.agents/skills/, which Grok finds on its own (see the note
-# above [plugins] below); the git-safety hook from ~/.grok/hooks/, and rules
-# from ~/.grok/AGENTS.md; the [permission] block carries the git denies. The one
-# remaining ~/.claude read is the shared plugin cache, which has no compat cell
-# (see [plugins] below). All compat cells default true.
+# Skills come from ~/.agents/skills/, which Grok finds on its own; the
+# git-safety hook from ~/.grok/hooks/, and rules from ~/.grok/AGENTS.md; the
+# [permission] block carries the git denies. The one remaining ~/.claude read is
+# the shared plugin cache, which has no compat cell (see [plugins] below). All
+# compat cells default true.
 #
 # Project `.claude/settings.json` permission rules still merge with no toggle
 # (Skill() prefixes skip). Generic top-level CLAUDE.md still loads; home
@@ -82,16 +82,6 @@ sessions = false  # staged cell (foreign-session scanner), pinned off
 # its other cells are reserved/inert, so nothing else to pin here.
 [compat.codex]
 sessions = false
-
-# There is deliberately no [skills] block. Grok natively scans ~/.agents/skills/
-# (Agents.md standard — no compat toggle exists for it), which is the one library
-# every tool here reads, so it needs no configuration to find it. A `[skills]
-# ignore` used to point Grok at ~/.grok/skills/ instead, back when the fan-out
-# wrote that tree; nothing has written it since, so the ignore was pinning Grok
-# to a stale copy. Re-adding it reintroduces exactly that.
-#
-# Grok therefore reads the library the way Codex does: whole, with no per-skill
-# filter, which is why `metadata.install-targets` has no `grok` value to name.
 
 # Grok still discovers plugins under ~/.claude/plugins/ (no compat cell). Keep
 # `enabled` empty so that cache cannot register MCP. Context7 and Paper are

@@ -1,6 +1,6 @@
 # Composition
 
-Law 1 hangs every region on a spine, Law 2 demands the second contact, Law 5 spends space before any louder cue, and Law 20 assembles a section in order, while Law 6 owns the landmarks that break a wall. This sheet is the anatomy those Laws assume: the panes a working surface splits into, what each pane owns, the skeletons that repeat inside them, and the spine and the contacts each one hangs from. Every skeleton here is read off a built surface and carries no identity. It ranks nothing, names no failure and settles no Law — `## Working the laws` owns the procedure and the verdict. Which visual form a fact takes lives in `references/encodings.md`, and color values live in `references/color.md`.
+The anatomy Laws 1, 2, 5 and 20 assume: the panes a working surface splits into, what each pane owns, the skeletons that repeat inside them, and the edges each one hangs from. Every skeleton here is read off a built surface and carries no identity. Which visual form a fact takes lives in `references/encodings.md`, and color values live in `references/color.md`.
 
 ## The three-pane surface
 
@@ -54,7 +54,7 @@ Key-value blocks come third, gathered under collapsible section headings — det
 
 ## The key-value row
 
-A key-value row is two columns and two spines. The label column hangs from the region's start edge. The value column hangs from its own start edge, held for every row in the block, so the values form a second column the eye can run down without reading a label.
+A key-value row is two columns on two edges. The label column hangs from the region's start edge. The value column hangs from its own start edge, held for every row in the block, so the values form a second column the eye can run down without reading a label.
 
 The label is muted and never wraps. The value carries the weight.
 
@@ -62,7 +62,7 @@ A leading glyph sits inside the value column, before the value, and it is chosen
 
 A value from a closed set drops the glyph and becomes a chip. A value from an open set stays text.
 
-The row has no divider and needs none, because two spines already hold it.
+The row has no divider and needs none, because two edges already hold it.
 
 ## The grouped checklist
 
@@ -96,7 +96,7 @@ A stat strip follows — four columns, label above value — then a hairline, th
 
 A card. A heading led by a small chart glyph on the spine, a period selector on the end edge.
 
-Three category rows, labels on the spine, bars growing from a shared zero edge, the value axis ticked under the plot. The zero edge is the spine of the plot and the labels are the spine of the card, so the chart holds two.
+Three category rows, labels on the spine, bars growing from a shared zero edge, the value axis ticked under the plot. The labels are the card's spine and the zero edge is the plot's, one spine per region.
 
 Each row carries two bars on one track: the current period saturated and in front, the comparison pale and behind. One row, one comparison, no legend.
 

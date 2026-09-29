@@ -1,6 +1,6 @@
-# Motion values
+# Motion
 
-Law 19 rules motion: it is identity, it hands the focal point from one region to the next, and reduced motion removes the movement rather than the meaning. This sheet carries the numbers that Law leaves unstated — curves, bands, properties, offsets, floors. It settles no Law. Every value here is a starting band for a product register, and the Law decides whether the motion exists at all.
+Law 19 rules motion. This sheet carries its numbers — curves, bands, properties, offsets and reduced motion — as starting bands for a product register. The Law decides whether the motion exists at all.
 
 ## Easing
 
@@ -17,7 +17,7 @@ The built-in CSS keywords are too weak to read as a decision, so name the curve:
 
 An accelerating curve starts slow, so it belongs only on motion the user has already stopped watching, and only inside the exit band below. A hover tint or a color change takes plain `ease`. Constant motion — a progress fill, a marquee, a spinner — takes `linear`, because progress that eases misreports itself.
 
-A spring replaces a curve when velocity has to survive: a drag with momentum, a gesture the user can reverse, a value tracking the pointer. Two spellings, same physics: `{ type: "spring", duration: 0.5, bounce: 0.2 }`, or `{ mass: 1, stiffness: 100, damping: 10 }` when the parameters need direct control. Bounce stays between 0.1 and 0.3, and everything outside drag-to-dismiss and play uses bounce 0. Motion — https://motion.dev — MIT — is the library that reads these configs; a CSS-only approximation of a bounceless spring is `cubic-bezier(0.2, 0, 0, 1)`.
+A spring replaces a curve when velocity has to survive: a drag with momentum, a gesture the user can reverse, a value tracking the pointer. Two spellings of one model: `{ type: "spring", duration: 0.5, bounce: 0.2 }`, or `{ mass: 1, stiffness: 100, damping: 16 }` when the parameters need direct control, which is a damping ratio of 0.8 and the same bounce 0.2. Bounce stays between 0.1 and 0.3, and everything outside drag-to-dismiss and play uses bounce 0. Motion — https://motion.dev — MIT — is the library that reads these configs; a CSS-only approximation of a bounceless spring is `cubic-bezier(0.2, 0, 0, 1)`.
 
 ## Duration
 
@@ -29,14 +29,13 @@ Duration follows travel distance and element size. A short hop sits at the botto
 - Dropdown, select, menu, icon swap: 150–250ms.
 - Modal and its backdrop: 200–250ms.
 - Drawer, sheet, full-screen layer: 300–500ms on `--ease-sheet`.
-- Exit of anything in the four bands above: 150ms.
 - Marketing reveal and explanation: 400–800ms.
 
-Past 300ms a user operating a functional surface waits. Past 500ms the wait is the thing they notice. A frequently repeated element halves its band; an element seen once a week may take the top of it.
+Past 300ms a user operating a functional surface waits, so only a full-height layer earns more. Past 500ms the wait is the thing they notice. A frequently repeated element halves its band; an element seen once a week may take the top of it.
 
 ## Properties
 
-`transform` and `opacity` compose on the GPU: no layout, no paint, one frame of work. `clip-path` is the sanctioned fourth for a reveal, a wipe or a hold-to-confirm fill. `height` is tolerated on an accordion only, where no transform equivalent exists, and stays at 200ms because it costs layout every frame.
+`transform` and `opacity` compose on the GPU: no layout, no paint, one frame of work. `clip-path` is the sanctioned third for a reveal, a wipe or a hold-to-confirm fill. `height` is tolerated on an accordion only, where no transform equivalent exists, and stays at 200ms because it costs layout every frame.
 
 - `width`, `height`, `margin`, `padding`, `top`, `left` and `inset` trigger layout, paint and composite on every frame.
 - `box-shadow`, `background-color`, `border-color` and `filter` trigger paint; animated `blur()` stays under 20px.
@@ -48,13 +47,13 @@ Past 300ms a user operating a functional surface waits. Past 500ms the wait is t
 
 ## Enter and exit
 
-An enter is deliberate and an exit is not, so the two are never the same length. Enter takes 200–300ms, exit takes 150ms, and the exit retraces the path the enter took.
+An enter is deliberate and an exit is not, so the two are never the same length. An enter takes its band above. An exit takes 150ms, a drawer or sheet a little longer but still shorter than its enter, and it retraces the path the enter took.
 
 - Nothing appears from nothing. Start a panel at `scale(0.95)` and a tooltip at `scale(0.97)`, both with `opacity: 0`. `scale(0)` is a defect.
 - A contextual icon swap is the exception: `scale(0.25)`, `opacity: 0`, `blur(4px)`, crossfaded in both directions.
 - `transform-origin` sits at the trigger — `var(--transform-origin)` where a headless primitive supplies it. A modal is exempt and stays centered, because it is anchored to the viewport rather than to a control.
 - A staged enter offsets by `translateY(8px)` to `translateY(12px)` and may add `filter: blur(4px)` resolving to `blur(0)`.
-- An exit offsets by `translateY(-12px)`, never by the full container height, unless spatial context is the point and the element returns to a place the user can see.
+- An exit travels a short offset, never the full container height, unless spatial context is the point and the element returns to a place the user can see.
 - `@starting-style` gives an entry its first frame with no JS and no mount flag.
 - Stagger runs 30–80ms between siblings, 100ms between semantic groups, 80ms between the words of a heading.
 - The stagger ceiling is total, not per item: the last element lands within 500ms, and the list stays operable from the first frame.
@@ -80,23 +79,21 @@ A spring carries velocity across the interruption, which is why a flicked elemen
 - Hover motion left ungated, since a tap fires a false hover. Wrap it in `@media (hover: hover) and (pointer: fine)`.
 - A theme swap, where every transitioned color fires at once and reads as a smear. Inject `*, *::before, *::after { transition: none !important }`, force a reflow, drop it on the next frame.
 - A state change that has no other channel. Color, an icon or a label carries the meaning; motion only carries the eye.
-- An element whose only purpose the animation serves is looking alive.
+- An animation whose only purpose is to look alive.
 
 ## Reduced motion
 
-`@media (prefers-reduced-motion: reduce)` is the query, and the swap is movement for a crossfade:
+`@media (prefers-reduced-motion: reduce)` is the query, and the swap is movement for a crossfade. Drive offsets and scales from tokens, then reset the tokens under the preference, so every component keeps its opacity fade and loses its travel:
 
 ```css
+:root {
+  --motion-offset: 8px;
+  --motion-scale: 0.95;
+}
 @media (prefers-reduced-motion: reduce) {
-  * {
-    transition-duration: 150ms;
-    animation-duration: 150ms;
-    animation-iteration-count: 1;
-  }
-  .panel,
-  .sheet,
-  .toast {
-    transform: none;
+  :root {
+    --motion-offset: 0px;
+    --motion-scale: 1;
   }
 }
 ```

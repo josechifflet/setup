@@ -71,10 +71,8 @@
     // still hold — opencode takes the LAST matching rule, and they are last.
     "edit": "allow",
     "webfetch": "allow",
-    // Plans live outside every repo so no commit can include them.
     "external_directory": {
-      "*": "ask",
-      "~/.local/state/plans/**": "allow"
+      "*": "ask"
     },
 
     // opencode has no PreToolUse hook a shell script can register, so unlike

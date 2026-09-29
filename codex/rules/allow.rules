@@ -48,7 +48,7 @@ prefix_rule(
     pattern = ["shellcheck"],
     decision = "allow",
     justification = "A linter `just lint` runs; an agent checking its own work should not be interrupted.",
-    match = ["shellcheck scripts/scan-secrets"],
+    match = ["shellcheck scripts/bootstrap"],
     not_match = [],
 )
 
@@ -56,7 +56,7 @@ prefix_rule(
     pattern = ["shfmt"],
     decision = "allow",
     justification = "A formatter `just lint` runs in check mode.",
-    match = ["shfmt -d scripts/scan-secrets"],
+    match = ["shfmt -d scripts/bootstrap"],
     not_match = [],
 )
 

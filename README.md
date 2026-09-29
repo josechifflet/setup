@@ -1,6 +1,6 @@
 # setup
 
-My agent setup for Claude Code, Codex, Cursor, Grok and opencode. It holds one set of rules, six subagents per tool (five in Claude), a git guard hook and 15 skills.
+My agent setup for Claude Code, Codex, Cursor, Grok and opencode. It holds one set of rules, a git guard hook and 15 skills.
 
 ## Install
 
@@ -17,7 +17,7 @@ cd setup
 2. Five settings files are merged, not copied, because the apps rewrite them: `claude/settings.json`, `codex/config.toml`, `grok/config.toml`, `cursor/mcp.json` and `cursor/cli-config.json`. Keys here win; keys the app wrote stay.
 3. Skills are copied into `~/.agents/skills` and `~/.cursor/skills`, and each is linked into `~/.claude/skills`. A skill folder with the same name is replaced; other skills are left alone.
 
-Copies, not symlinks: every agent writes state into its home, and a symlink would carry it back into the repo. Re-run `install.sh` after you pull.
+Copies, not symlinks: every agent writes state into its home, and a symlink would carry it back into the repo. Re-run `install.sh` after you pull. It never deletes, so remove a file the repo dropped by hand: an install from before the subagents were dropped leaves `~/.claude/agents`, `~/.codex/agents`, `~/.cursor/agents`, `~/.grok/agents` and `~/.config/opencode/agent` behind.
 
 ## Layout
 
@@ -25,20 +25,19 @@ Copies, not symlinks: every agent writes state into its home, and a symlink woul
 agents/AGENTS.md   → ~/.agents/AGENTS.md   shared rules
 agents/my-skills/  → ~/.agents/skills      skills I wrote
 agents/skills/     → ~/.agents/skills      vendored skills, pinned in skills-lock.json
-claude/            → ~/.claude             CLAUDE.md, settings, subagents, hook, status line
-codex/             → ~/.codex              AGENTS.md, config, subagents, hook, command rules
-cursor/            → ~/.cursor             rule, subagents, MCP, permissions
-grok/              → ~/.grok               AGENTS.md, config, subagents, hook
-opencode/          → ~/.config/opencode    AGENTS.md, config, subagents
+claude/            → ~/.claude             CLAUDE.md, settings, hooks, status line
+codex/             → ~/.codex              AGENTS.md, config, hook, command rules
+cursor/            → ~/.cursor             rule, MCP, permissions
+grok/              → ~/.grok               AGENTS.md, config, hook
+opencode/          → ~/.config/opencode    AGENTS.md, config
 ```
 
 ## How it works
 
-- **Rules.** Each tool gets the same preferences: short replies, and git reads, adds, commits and pushes only. Every tool checks each change as it goes and runs the full gate once at the end. Every other git write goes to you as the exact command, and no agent or subagent leaves the branch or checkout its session started in. Claude also makes the smallest change, edits only through Edit and Write so `/rewind` can undo it, and runs no review or polish round you did not ask for.
-- **Subagents.** explorer and researcher read, planner writes a plan file, orchestrator runs waves of workers, and worker makes one owned write. The main session decides. A worker reads its own diff before its check, restores any behaviour a removed line carried, and proves a changed screen with a screenshot. Every orchestrator runs waves until the handed work is done, judges each diff itself, and briefs no agent to review another's work. reviewer runs only when you ask, or before a multi-file change to money, auth, persistence or concurrency code is reported; it proves each finding with a check, and a fix is proved with a check rather than another review. Workers, orchestrators and planners run at `xhigh` effort and reviewers at `max` where the model offers it. Claude has no orchestrator: its main session briefs workers itself, spawns planner and researcher only when you name them, and sends reviewer only money or auth code unless you ask. Claude's subagents inherit the session's tools minus what each role forbids, and none spawns another. Grok cannot nest, so its orchestrator runs as its own session.
+- **Rules.** Each tool gets the same five preferences and five git rules: make the smallest change, check finished work and run the full gate once before the report, report and stop with no review or polish round you did not ask for, lead with the result, and keep going unless blocked or about to delete data or change something outside the repo. Git reads run freely, and `add`, `commit` and `push` run once you ask. Every other git write goes to you as the exact command, and no agent or subagent leaves the branch or checkout its session started in. Claude also starts a workflow only when your message contains `ultracode`, and stops a workflow's retry loops after 3 rounds.
+- **Subagents.** None are defined. Each tool uses its built-in subagents, and works directly when it can.
 - **Safety.** Every agent asks before a shell command. A `PreToolUse` hook in Claude, Codex and Grok allows only git reads, `add`, `commit` and a plain `push`, and refuses `wt` and the `gh` commands that change a branch; each refusal tells the agent why and what to do next. A second Claude hook refuses subagents and workflows that ask for a worktree. Claude's deny list repeats the branch-change blocks, because a hook that times out or fails lets the call run. Cursor and opencode deny branch changes and destructive git in config.
 - **MCP.** context7 and [Paper](https://paper.design) Desktop. Export `CONTEXT7_API_KEY`. For Codex, add the key by hand as `[mcp_servers.context7.http_headers]` in `~/.codex/config.toml`.
-- **Plans.** Plan files live in `~/.local/state/plans`, outside every repo.
 
 The models, login method and themes are mine. Edit `claude/settings.json`, `codex/config.toml`, `grok/config.toml` and `opencode/opencode.jsonc` before you install.
 

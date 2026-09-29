@@ -8,8 +8,6 @@
 #
 # Keys not named here, the context7 API-key header among them, can go into
 # ~/.codex/config.toml by hand and stay there.
-#
-# install.sh expands @HOME@, because Codex expands neither ~ nor $HOME here.
 
 # Prompt before leaving the sandbox; the sandbox keeps writes in the workspace
 # and network off. Full autonomy is one session away: `codex --yolo`.
@@ -20,13 +18,8 @@ sandbox_mode = "workspace-write"
 service_tier = "default"
 personality = "pragmatic"
 
-# Plans live outside every repo (AGENTS.md), so the sandbox must let the main
-# session write them. Network stays off; a command that needs it asks.
-[sandbox_workspace_write]
-writable_roots = ["@HOME@/.local/state/plans"]
-
 # Pin unnamed spawns so an Astra parent does not raise every subagent's usage.
-# Cap is 6: the orchestrator is itself a spawned thread, then a planner it may spawn first, then a wave of up to four.
+# Cap is 6 concurrent subagents, all spawned by the main session.
 [agents]
 enabled = true
 default_subagent_model = "gpt-6-sol"

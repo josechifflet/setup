@@ -1,12 +1,12 @@
 # Typography
 
-Every value here was taken from a spec, a CSS property or a worked scale, never from a preference. This sheet supplies the numbers Law 14 and Law 15 leave unstated: the ratios, the bands, the property names and the WCAG floors. It settles neither Law. A number produces the artifact a Law asks for, and the judgement stays with the reviewer.
+Laws 14 and 15 rule the scale and the type. This sheet carries their numbers: ratios, roles, measure, leading, tracking, figures, wrapping and the WCAG floors.
 
 ## Scale
 
 - A scale is one ratio applied repeatedly from a base of `1rem`, which is the browser default of 16px until the reader changes it.
 - Useful ratios: 1.125 major second, 1.2 minor third, 1.25 major third, 1.333 perfect fourth, 1.5 perfect fifth. Below 1.125 adjacent steps stop reading as different; above 1.5 the middle of the scale empties out.
-- One ratio rarely covers both ends. A common split runs 1.125 through the UI sizes and 1.25 or 1.333 above `1.5rem`, so small steps stay usable and display steps stay separated.
+- One ratio rarely covers both ends. A common split runs about 1.125 through the UI sizes and 1.333 to 1.5 above them, as the table below does, so small steps stay usable and display steps stay separated.
 - Five to seven steps cover a product surface. Each step carries a size, a line-height and a weight, so picking a role is one decision rather than three.
 
 | Role    | Size               | Line-height | Weight |
@@ -19,7 +19,7 @@ Every value here was taken from a spec, a CSS property or a worked scale, never 
 
 - Round every computed step to `0.0625rem`, which is 1px at the default root. An unrounded `1.2601rem` renders at a subpixel and buys nothing.
 - Headings map to descending steps. Two adjacent levels may share a step at the small end when weight or tracking keeps them apart.
-- Emphasis inside a role is one weight step, `400` to `500`. It is not a size change.
+- Emphasis inside a role is a weight change, `400` to `600`. It is not a size change.
 - Fluid steps use `clamp(min, intercept + slope * 1vw, max)`. Slope is `(max − min) / (maxViewport − minViewport)` expressed in `vw`; intercept is `min − slope × minViewport`.
 - Worked: `1.5rem` at a 320px viewport up to `2.25rem` at 960px is `clamp(1.5rem, 1.125rem + 1.875vw, 2.25rem)`.
 - The `rem` term in that expression is load-bearing. A `clamp()` built from `vw` alone ignores the reader's browser font size and fails SC 1.4.4.
@@ -57,7 +57,7 @@ Every value here was taken from a spec, a CSS property or a worked scale, never 
 - `font-variant-numeric: lining-nums` (`lnum`) keeps digits at cap height for interface text. `oldstyle-nums` (`onum`) lets them sit on the baseline with ascenders and descenders, which suits running editorial prose only.
 - `font-variant-numeric: slashed-zero` (`zero`) separates `0` from `O` in IDs, codes, hashes and license keys.
 - `font-variant-numeric: diagonal-fractions` (`frac`) draws a real fraction instead of stacking a slash between two full-size digits.
-- Reach a numeric feature through `font-variant-numeric`, never `font-feature-settings`, because the shorthand resets every feature it does not name.
+- Reach a numeric feature through `font-variant-numeric`, never `font-feature-settings`, because each `font-feature-settings` declaration replaces every feature it does not repeat.
 - Compared numbers hang from the end edge: `text-align: end` on the cell and on its header together, so the header never drifts off its column.
 - Decimal alignment has no shipped implementation. `text-align: <string>` is defined in CSS Text Level 4 and implemented nowhere, so fix the decimal count instead with `Intl.NumberFormat` and `minimumFractionDigits`, then end-align.
 - A monospace family gives equal digit widths when the text family ships no `tnum`. It changes the voice of the column, so it is a fallback, not a first move.

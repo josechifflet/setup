@@ -1,24 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Agents read git and may add and commit; the user runs every other git write,
-# and no agent or subagent leaves the branch or checkout its session started
-# in. That rule lives in each home's CLAUDE.md or AGENTS.md, and this hook is
-# the fast backstop behind it. It allows a git call only when its subcommand is
-# a known read, `add`, `commit` without --amend, or `push` that neither forces
-# nor deletes. It also refuses `wt` and
-# the `gh` commands that check out, merge or sync a branch. Every refusal tells
-# the agent why and what to do next, because a bare denial reads as a hurdle to
-# route around. The text states facts, not orders: Claude can treat an order
-# from outside the conversation as prompt injection and surface it instead of
-# acting on it. It parses laxly on purpose: no alias, variable or $(...) word is resolved, text piped
-# or here-string fed into a shell is not read, and a git word split by quotes
-# never reaches the parser, so `$G push`, `echo git push | sh`, `g''it push` or
-# `$(echo git) push` passes. That trade keeps jq and shfmt off the path.
+# The fast backstop behind the git rule in each home's CLAUDE.md or AGENTS.md.
+# It allows a git call only for a known read, `add`, `commit` without --amend,
+# or `push` that neither forces nor deletes, and refuses `wt` and the `gh`
+# commands that check out, merge or sync a branch. Each refusal says why and
+# what to do next, as facts, not orders: Claude can treat an outside order as
+# prompt injection. The parse is lax on purpose, to keep jq and shfmt off the
+# path: no alias, variable or $(...) is resolved, text piped or here-string fed
+# into a shell is not read, and a quote-split git word is missed, so `$G push`,
+# `echo git push | sh`, `g''it push` and `$(echo git) push` pass.
 #
-# [PERF] bash 3.2 and BWK awk on darwin/arm64: ~4ms with no `git`, `gh pr`,
-# `gh repo` or `wt ` in the command, no exec at all; ~7ms with one, a single awk; ~32ms for a 245KB
-# heredoc. The shfmt and jq version this replaced took ~23ms and ~78ms.
+# [PERF] bash 3.2 and BWK awk on darwin/arm64: ~4ms and no exec without `git`,
+# `gh pr`, `gh repo` or `wt ` in the command; ~7ms and one awk with one; ~32ms
+# for a 245KB heredoc.
 
 # [PERF] Byte semantics. In a UTF-8 locale bash 3.2 counts and matches by
 # character, and one `${x%%y*}` on a 245KB payload took 9s.
@@ -28,8 +23,16 @@ LC_ALL=C
 # with no /dev/stdin, where the bare form would fail open.
 { PAYLOAD=$(< /dev/stdin); } 2> /dev/null || PAYLOAD=$(cat)
 
+# Codex and Grok install this same file. Grok's hook config sets
+# GIT_GUARD_JSON=1, because Grok reads the decision from stdout. $1 never holds
+# a quote or a backslash: awk strips a subcommand to [A-Za-z0-9._@/+$ -] before
+# it names one, and the rest is fixed text.
 block() {
-  echo "BLOCKED: $1" >&2
+  if [[ ${GIT_GUARD_JSON:-} == 1 ]]; then
+    printf '{"decision": "deny", "reason": "BLOCKED: %s"}\n' "$1"
+  else
+    echo "BLOCKED: $1" >&2
+  fi
   exit 2
 }
 

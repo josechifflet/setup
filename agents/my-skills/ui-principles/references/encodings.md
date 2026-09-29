@@ -1,18 +1,18 @@
 # Encodings
 
-The gate asks whether a fact can be shown instead of told, Law 6 turns a closed set into a chip and leaves an open string as text, Law 10 trades text for a visual the audience already owns, and Law 17 puts the meaning in the glyph rather than in another sentence. This sheet is the catalogue those Laws assume: one kind of fact per section, the form it takes, the anatomy of that form, a form observed in a real surface, and the condition that breaks it. Law 9 owns what earns an accent and Law 11 owns where the color comes from, so no entry here spends either. It supplies a catalogue and settles no Law. Color values live in `references/color.md`.
+The catalogue the gate and Laws 6, 10 and 17 assume: one kind of fact per section, the form it takes, the anatomy of that form, an observed example, and the condition that breaks it. The examples come from the skeletons in `references/composition.md`: the CRM is its three-pane surface, the user card its profile header, the checklist its grouped checklist, the settings panel its settings row, and the Expense report its comparison chart. Color values live in `references/color.md`.
 
 ## Person
 
-A person is a face. A round avatar at the size of the text it sits in, the name beside it, and a badge on the lower corner for a fact about the person rather than about the account. The CRM task row reads "Upload Q2 invoice folder to Jeff in accounting" with Jeff's avatar inline at line size, and the user card enlarges that same avatar over a cover band and hangs a blue check on its lower right. The face fails when the audience does not already hold it: an unfamiliar avatar is a colored disc, and initials rank below the name they abbreviate.
+A person is a face. A round avatar at the height of the line it sits in, the name beside it, and a badge on the lower corner for a fact about the person rather than about the account. The CRM task row reads "Upload Q2 invoice folder to Jeff in accounting" with Jeff's avatar inline at line size, and the user card enlarges that same avatar over a cover band and hangs a blue check on its lower right. The face fails when the audience does not already hold it: an unfamiliar avatar is a colored disc, and initials rank below the name they abbreviate.
 
 ## Category or tag
 
-A category is a chip. A rounded fill, a label in one or two words, and a leading glyph when the category has a kind — the VC chip in the task list carries a folder, the FINANCE chip a card, the PAYROLL chip a document. The chip fails when the set is open: a free string in a chip promises a set that does not exist, and Law 6 already leaves open strings as text.
+A category is a chip. A rounded fill, a label in one or two words, and a leading glyph when the category has a kind — the VC chip in the task list carries a folder, the Finance chip a card, the Payroll chip a document. The chip fails when the set is open: a free string in a chip promises a set that does not exist, and Law 6 already leaves open strings as text.
 
 ## Status
 
-A status is a chip whose fill traces to the state it names, with the state spelled out in the label. "Closed won" sits green in the activity feed and "Full Time" sits pink on the Employment row, each a single word pair no reader decodes. The status chip fails when every value in the set is lit: with all of them accented nothing ranks, and Law 9 already rules which values earn the fill.
+A status is a chip whose fill traces to the state it names, with the state spelled out in the label. "Closed won" sits green in the activity feed, a word pair no reader decodes. The status chip fails when every value in the set is lit: with all of them accented nothing ranks, and Law 9 already rules which values earn the fill.
 
 ## State transition
 
@@ -28,7 +28,7 @@ A magnitude is a bar from a shared baseline, ordered longest first, read against
 
 ## Trend over time
 
-A trend is a line on a time axis, the series that matters drawn dark and its comparison drawn pale. Total sales runs one red line over one washed line across Sep 2, Oct 8, Nov 16 and Today, and the direction registers before a single value is read. The line fails when the points are few or unordered: three readings are three numbers, and a line drawn through them invents the path between.
+A trend is a line on a time axis, the series that matters drawn dark and its comparison drawn pale. Total sales runs one saturated line over one washed line across Sep 2, Oct 8, Nov 16 and Today, and the direction registers before a single value is read. The line fails when the points are few or unordered: three readings are three numbers, and a line drawn through them invents the path between.
 
 ## Link
 
@@ -44,7 +44,7 @@ A boolean applied on the spot is a toggle; a boolean committed with a form is a 
 
 ## Enum
 
-An enum is the current value on the surface and the set one tap behind it: a tinted chip carrying a leading glyph and the value in words, with the chevron on the row outside it. The settings panel reads down a column of them — "Suggest only", "Blank only", "Stale > 30d", "Sources only", "Save as suggestion" — so the whole configuration is legible without opening anything. The chip fails when the set outgrows one menu, and when the values are not exclusive, since a chip that shows one value hides the others that are also true.
+An enum is the current value on the surface and the set one tap behind it: a monochrome chip carrying a leading glyph and the value in words, with the chevron on the row outside it. The settings panel reads down a column of them — "Suggest only", "Blank only", "Stale > 30d", "Sources only", "Save as suggestion" — so the whole configuration is legible without opening anything. The chip fails when the set outgrows one menu, and when the values are not exclusive, since a chip that shows one value hides the others that are also true.
 
 ## Tier or level
 

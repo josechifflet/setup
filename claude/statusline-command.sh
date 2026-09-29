@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Claude Code Status Line
-# Format: dir | branch | model | used/total tokens | +lines/-lines
+# Format: profile | dir | branch | model effort | used/total tokens | +lines/-lines | age
 
 # The config dir name, read at runtime so one file serves every profile that
 # CLAUDE_CONFIG_DIR selects.

@@ -1,6 +1,6 @@
 # States
 
-Law 12 rules the hidden layer, Law 13 the rung each piece sits on, Law 21 the widths and the targets. This sheet is the inventory those Laws assume: the states a region owes, the data shapes that break it, the widths and inputs and environments that reach it, and the numbers a target and a focus ring have to clear. It is a list of what a review exercises. It ranks nothing, names no failure and settles no Law — `## Working the laws` owns the procedure and the verdict.
+Law 12 rules the hidden layer, Law 13 the rung each piece sits on, Law 21 the widths and the targets. This sheet is the inventory a review exercises: the states a region owes, the data shapes that break it, the widths, inputs and environments that reach it, and the numbers a target and a focus ring have to clear.
 
 ## States
 
@@ -15,14 +15,14 @@ Law 12 rules the hidden layer, Law 13 the rung each piece sits on, Law 21 the wi
 - Loading — a skeleton at the region's real size, or a spinner beside the original label. A bare spinner replacing a label leaves assistive technology with no name for what is busy.
 - Empty — zero items, with a message and the action that fills it.
 - Partial — some of the data arrived and some failed. It belongs to the region, not to the page.
-- Error — inline beside the field, with `aria-invalid="true"` and `aria-describedby` pointing at the message. A red border alone carries meaning in colour alone.
+- Error — inline beside the field, with `aria-invalid="true"` and `aria-describedby` pointing at the message. A red border alone carries meaning in color alone.
 - Success — announced through a polite live region. A confirmation carrying the only undo link never expires on a timer.
 - Offline — the queued write, the retry and the marker that says the view is not live.
 - Stale — data still rendered after its refresh failed. It says how old it is.
 - First-run — one pointer at one action, then the next, which is Law 13's ladder running in time.
 - Announcement — a banner, a badge or a what's-new. Each is a region with its own spine, and each is dismissible.
 
-Every region owes rest, hover, focus-visible and disabled. What it owes beyond that comes from what it holds:
+Every interactive region owes rest, hover, focus-visible and disabled. What it owes beyond that comes from what it holds:
 
 | Region                                 | States it also owes                                           |
 | -------------------------------------- | ------------------------------------------------------------- |
@@ -47,7 +47,7 @@ Every region owes rest, hover, focus-visible and disabled. What it owes beyond t
 
 ## Widths
 
-320 CSS px is the floor. WCAG 2.2 SC 1.4.10 asks for reflow with vertical scrolling only at a viewport equivalent to 320 CSS px wide, which is 400% zoom on a 1280px viewport. Genuinely two-dimensional content is the exception, and a table, a map or a code block scrolls inside its own container rather than scrolling the page.
+320 CSS px is the floor. WCAG 2.2 SC 1.4.10 asks for reflow with vertical scrolling only at a viewport equivalent to 320 CSS px wide, which is 400% zoom on a 1280px viewport. Content read across both axes is the exception: a data grid, a map or a code block scrolls inside its own container rather than scrolling the page. A table read row by row changes vessel instead, per Law 21.
 
 Container widths are the real test, because a region reflows on its own width and not the viewport's. Exercise a 320px container, the region squeezed by a flex or grid sibling until `min-content` blows the layout out, a narrow middle width where the vessel has to change, and a very wide one where the measure runs unbounded and the controls stretch. Render each as a fixed container on one page. Resizing the window scenario by scenario observes a different set of regions each time.
 
@@ -68,9 +68,9 @@ Voice control — a user says the visible label. Where the accessible name does 
 ## Environment
 
 - Light and dark, each designed rather than inverted.
-- `forced-colors: active`, where authored colours, background images and backdrop filters are dropped and only system colours remain.
+- `forced-colors: active`, where authored colors, background images and backdrop filters are dropped and only system colors remain.
 - `prefers-contrast: more`, where the foreground and background gap widens by a real, remeasured amount rather than by eye.
-- `prefers-reduced-motion`, exercised as a row: every animated region rendered under the preference, checked for feedback that vanished with the movement. Another sheet owns what the implementation looks like.
+- `prefers-reduced-motion`, exercised as a row: every animated region rendered under the preference, checked for feedback that vanished with the movement. `motion.md` owns the implementation.
 - `prefers-reduced-transparency`, where every translucent surface goes opaque and still separates.
 - Locale, including a translation that runs 30% longer than the English and one that runs shorter.
 - Number and date format, where the grouping and decimal separators swap and the date order changes. Format through `Intl`, never by concatenating parts.
@@ -82,10 +82,10 @@ Voice control — a user says the visible label. Where the accessible name does 
 - 44 by 44 CSS px — SC 2.5.5, Level AAA, and the practical size for a primary touch control.
 - 44 by 44 pt — the iOS and iPadOS default. 28 by 28 pt on macOS.
 - 48 by 48 dp — the Android minimum.
-- Spacing exception — an undersized target still passes SC 2.5.8 when a 24px circle centred on it intersects no other target and no other such circle. In the plain case, 20px targets need 4px of gap.
+- Spacing exception — an undersized target still passes SC 2.5.8 when a 24px circle centered on it intersects no other target and no other such circle. In the plain case, 20px targets need 4px of gap.
 
 The visible element stays small; the hit area is what grows. Expand it with a pseudo-element on the wrapping `<label>` or `<button>`, never on the `<input>`, since a replaced element does not render `::before` or `::after` reliably. Where the box can simply be bigger, `min-width` and `min-height` with `place-items: center` hands the engine real geometry. Overlapping hit areas send a tap to whichever element paints on top, so an expanded area that collides shrinks to the largest size that does not.
 
-A focus indicator is checked around its whole perimeter, against every colour it crosses: the component fill, the page surface, an image, a gradient, and the hover and selected states underneath it. The browser's own ring adapts to the platform and to forced colours, so adding only `outline-offset: 2px` keeps that adaptation. A custom ring in `currentColor` has been checked against nothing.
+A focus indicator is checked around its whole perimeter, against every color it crosses: the component fill, the page surface, an image, a gradient, and the hover and selected states underneath it. The browser's own ring adapts to the platform and to forced colors, so adding only `outline-offset: 2px` keeps that adaptation. A custom ring in `currentColor` has been checked against nothing.
 
-A platform minimum and a WCAG criterion are separate floors, and the higher one governs. None of these rows is proved by a still image: hover, focus, disclosure, keyboard order and pointer behaviour each need the interaction actually run, and a row nobody ran stays a prediction.
+A platform minimum and a WCAG criterion are separate floors, and the higher one governs. None of these rows is proved by a still image: hover, focus, disclosure, keyboard order and pointer behavior each need the interaction actually run, and a row nobody ran stays a prediction.
