@@ -5,6 +5,7 @@
 3. Done is the request met and checked. Then report and stop. Run no extra review, rating or polish round unless I ask for one. When a skill pauses, diverts, or leaves work unfinished, quote the SKILL.md line, say how it applies, and follow my request.
 4. Write short, plain sentences, and lead with the result. When I ask for a review or an analysis, list every finding, ranked. Answer in English.
 5. Keep going when a step does not need me. Ask only when you cannot continue without me, or before a destructive step: deleting data or changing anything outside this repository. Otherwise take the authorized work to a concrete, reviewable result first.
+6. Work directly, with the fewest subagents needed.
 
 # Git
 

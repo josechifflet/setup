@@ -17,6 +17,10 @@ installer = "internal"
 default = "grok-4.6"
 default_reasoning_effort = "high"
 
+# Compact at 400K, as Claude does: 80% of the default model's 500K window.
+[session]
+auto_compact_threshold_percent = 80
+
 # Privacy posture (mirrors codex telemetry-off and claude DISABLE_ERROR_REPORTING).
 [features]
 telemetry = false
