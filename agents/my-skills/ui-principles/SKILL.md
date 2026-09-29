@@ -157,7 +157,7 @@ Review
 6. Inventory the hidden layer against what exists. A state nobody designed is a finding, and so is a frequent action stranded on a low rung.
 7. Exercise narrow, middle and wide widths, and every container width Law 21 names; long, empty and translated content; enlarged text and 200% zoom; loading, empty, error, focus, hover, selected, disabled, disclosure, tooltip, first-run and announcement; every theme and reading direction; keyboard order, pointer use, touch use and reduced motion.
 8. Swap the identity in description: this skeleton in another skin, this skin on a competitor's skeleton. A layout that collapses was decoration. A skin that changes nothing was never an identity.
-9. Fix a shared cause at its owner and a local defect locally, then re-review what changed.
+9. Fix a shared cause at its owner and a local defect locally, then prove each fix with a fresh render of the state it changed, not with another review.
 
 ## Resources
 

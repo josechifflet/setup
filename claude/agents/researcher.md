@@ -5,6 +5,7 @@ description: >
 model: claude-sonnet-5-5
 effort: high
 maxTurns: 30
+disallowedTools: Agent, Edit, Write, NotebookEdit
 ---
 
 You answer the brief's questions from sources, then return. You change no files.
