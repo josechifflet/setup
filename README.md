@@ -34,8 +34,8 @@ opencode/          → ~/.config/opencode    AGENTS.md, config, subagents
 
 ## How it works
 
-- **Rules.** Each tool gets the same preferences: implement first, check once at the end, short replies, and git reads, adds, commits and pushes only. Every other git write goes to you as the exact command, and no agent or subagent leaves the branch or checkout its session started in.
-- **Subagents.** explorer and researcher read, planner writes a plan file, orchestrator runs one wave of workers, worker makes one owned write, reviewer reviews a diff. The main session decides.
+- **Rules.** Each tool gets the same preferences: short replies, and git reads, adds, commits and pushes only. Claude checks each change as it goes and runs the full gate once at the end; the other tools implement first and check once at the end. Every other git write goes to you as the exact command, and no agent or subagent leaves the branch or checkout its session started in.
+- **Subagents.** explorer and researcher read, planner writes a plan file, orchestrator runs waves of workers, worker makes one owned write, reviewer reviews a diff. The main session decides. Claude's orchestrator runs waves until the handed work is done, and the other tools run one wave per hand-off. Claude's subagents inherit the session's tools, and nesting stops two layers below the main session.
 - **Safety.** Every agent asks before a shell command. A `PreToolUse` hook in Claude, Codex and Grok allows only git reads, `add`, `commit` and a plain `push`, and refuses `wt` and the `gh` commands that change a branch; each refusal tells the agent why and what to do next. A second Claude hook refuses subagents and workflows that ask for a worktree. Claude's deny list repeats the branch-change blocks, because a hook that times out or fails lets the call run. Cursor and opencode deny branch changes and destructive git in config.
 - **MCP.** context7 and [Paper](https://paper.design) Desktop. Export `CONTEXT7_API_KEY`. For Codex, add the key by hand as `[mcp_servers.context7.http_headers]` in `~/.codex/config.toml`.
 - **Plans.** Plan files live in `~/.local/state/plans`, outside every repo.

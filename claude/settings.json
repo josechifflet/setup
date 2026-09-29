@@ -6,7 +6,11 @@
   },
   "autoInstallIdeExtension": false,
   "autoMemoryEnabled": false,
-  "availableModels": ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5"],
+  "availableModels": [
+    "claude-fable-5-1",
+    "claude-opus-5-5",
+    "claude-sonnet-5-5"
+  ],
   "cleanupPeriodDays": 30,
   "deniedMcpServers": [
     {
@@ -21,7 +25,7 @@
   ],
   "disableArtifact": true,
   "disableAutoMode": "disable",
-  "disableBundledSkills": true,
+  "disableBundledSkills": false,
   "disableClaudeAiConnectors": true,
   "disableRemoteControl": true,
   "enableAllProjectMcpServers": false,
@@ -37,6 +41,7 @@
     "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "600000",
     "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
     "CLAUDE_CODE_DISABLE_TERMINAL_TITLE": "1",
+    "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "2",
     "DISABLE_ERROR_REPORTING": "1",
     "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
     "GIT_EDITOR": "true",
@@ -139,7 +144,15 @@
   },
   "respectGitignore": false,
   "skillOverrides": {
-    "paper-desktop:design-to-code": "user-invocable-only"
+    "batch": "user-invocable-only",
+    "code-review": "user-invocable-only",
+    "design": "off",
+    "design-sync": "off",
+    "loop": "user-invocable-only",
+    "paper-desktop:design-to-code": "user-invocable-only",
+    "ponytail": "user-invocable-only",
+    "simplify": "user-invocable-only",
+    "slides": "off"
   },
   "spinnerTipsEnabled": false,
   "statusLine": {
