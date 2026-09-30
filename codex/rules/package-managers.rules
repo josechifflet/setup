@@ -1,20 +1,41 @@
-# Publish targets an agent must not run without asking. Build and test targets
-# get no allow rule: they run repo-defined code, and an allow rule would run it
-# outside the sandbox with no prompt. Inside the sandbox they need no rule.
-
-# Publishing is the user's call, and a release script is the one npm target that
-# leaves the machine.
+# Named build/check scripts can run without tool approval. Read unfamiliar
+# scripts first. Unmatched commands follow the session policy, not a default ask.
 prefix_rule(
-    pattern = [["npm", "pnpm", "bun"], ["run"], ["deploy", "release", "publish"]],
+    pattern = [["npm", "pnpm", "bun"], "run", ["build", "test", "lint", "typecheck", "format:check"]],
+    decision = "allow",
+    justification = "Run existing project checks, after reading unfamiliar script definitions.",
+    match = ["npm run build", "pnpm run test", "bun run typecheck"],
+    not_match = ["npm run deploy"],
+)
+
+prefix_rule(
+    pattern = ["./gradlew", ["test", "check", "build", "assembleDebug"]],
+    decision = "allow",
+    justification = "Run named Gradle checks or builds, after reading the task definition.",
+    match = ["./gradlew assembleDebug"],
+    not_match = ["./gradlew publish"],
+)
+
+prefix_rule(
+    pattern = [["npm", "pnpm", "bun"], "run", ["deploy", "release", "publish"]],
     decision = "prompt",
-    justification = "Deploy and release scripts publish external state; read the script and confirm the target first.",
-    match = [
-        "npm run deploy",
-        "pnpm run release",
-        "bun run publish",
-    ],
-    not_match = [
-        "npm run build",
-        "pnpm run test",
-    ],
+    justification = "Publishing changes external state. Confirm the script, destination and artifact first.",
+    match = ["npm run deploy", "pnpm run release", "bun run publish"],
+    not_match = ["npm run build", "pnpm run test"],
+)
+
+prefix_rule(
+    pattern = [["npm", "pnpm", "bun"], "publish"],
+    decision = "prompt",
+    justification = "Publishing changes a package registry. Confirm the package, version and registry first.",
+    match = ["npm publish", "pnpm publish --access public", "bun publish"],
+    not_match = ["npm pack"],
+)
+
+prefix_rule(
+    pattern = ["just", ["deploy", "release", "publish", "apply", "brew-bundle", "bootstrap", "macos-defaults", "skills"]],
+    decision = "prompt",
+    justification = "This recipe may publish or change files and settings outside the repository. Read it and confirm the concrete change first.",
+    match = ["just deploy", "just apply", "just brew-bundle", "just skills update"],
+    not_match = ["just full-check", "just diff"],
 )

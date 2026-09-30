@@ -1,256 +1,91 @@
+# Prefix rules are a backstop, not a shell parser. The managed Bash hook handles
+# git global options, reordered flags, wrappers and the mixed read/write commands.
+# Authorization for add, commit and plain push remains in AGENTS.md.
 
 prefix_rule(
-    pattern = ["git", "reset"],
+    pattern = ["git", ["am", "apply", "bisect", "checkout", "cherry-pick", "clone", "fetch", "gc", "init", "merge", "mv", "prune", "pull", "rebase", "replace", "reset", "restore", "revert", "rm", "switch", "update-index", "update-ref"]],
     decision = "forbidden",
-    justification = "Every form moves HEAD and can orphan commits, eventually lost to GC.",
-    match = ["git reset --hard HEAD~1", "git reset --soft HEAD~1", "git reset"],
-    not_match = ["git revert HEAD", "just reset"],
+    justification = "The user leaves git writes other than add, commit and plain push to themselves. Give the user the exact command and continue on this checkout.",
+    match = ["git reset --hard HEAD~1", "git switch main", "git checkout -b feature", "git fetch origin"],
+    not_match = ["git status", "git branch -a", "git stash list", "git add file", "git commit -m message", "git push"],
 )
 
 prefix_rule(
-    pattern = ["git", "clean", "-f"],
+    pattern = ["git", "clean", ["-f", "-fd", "-xdf", "--force"]],
     decision = "forbidden",
-    justification = "Deletes untracked files irrecoverably; only the force forms delete.",
-    match = ["git clean -f"],
+    justification = "Leave deletion of untracked files to the user. The Bash hook checks other flag orders and combinations too.",
+    match = ["git clean -fd", "git clean --force"],
     not_match = ["git clean -n", "git clean --dry-run"],
 )
 
 prefix_rule(
-    pattern = ["git", "clean", "-fd"],
+    pattern = ["git", "branch", ["-d", "-D", "-m", "-M", "-f", "-c", "-C", "--delete", "--move", "--force", "--copy"]],
     decision = "forbidden",
-    justification = "Deletes untracked files irrecoverably; only the force forms delete.",
-    match = ["git clean -fd"],
-    not_match = ["git clean -n", "git clean --dry-run"],
+    justification = "Only the user creates, moves, renames or deletes branches. Give them the command.",
+    match = ["git branch -D old", "git branch --copy old new"],
+    not_match = ["git branch", "git branch -a", "git branch --merged main"],
 )
 
 prefix_rule(
-    pattern = ["git", "clean", "-xdf"],
+    pattern = ["git", "stash", ["push", "pop", "apply", "drop", "clear", "branch", "save", "create", "store", "export", "import"]],
     decision = "forbidden",
-    justification = "Deletes untracked files irrecoverably; only the force forms delete.",
-    match = ["git clean -xdf"],
-    not_match = ["git clean -n", "git clean --dry-run"],
+    justification = "Stash writes move or discard work. Leave them to the user; list and show remain reads. The hook also blocks bare git stash.",
+    match = ["git stash push", "git stash pop", "git stash clear"],
+    not_match = ["git stash list", "git stash show -p"],
 )
 
 prefix_rule(
-    pattern = ["git", "clean", "--force"],
+    pattern = ["git", "worktree", ["add", "move", "remove", "prune", "repair", "lock", "unlock"]],
     decision = "forbidden",
-    justification = "Deletes untracked files irrecoverably; only the force forms delete.",
-    match = ["git clean --force"],
-    not_match = ["git clean -n", "git clean --dry-run"],
+    justification = "Only the user changes worktrees. Continue in the session's original checkout.",
+    match = ["git worktree add ../wt main", "git worktree remove ../wt"],
+    not_match = ["git worktree list"],
 )
 
 prefix_rule(
-    pattern = ["git", "branch", "-d"],
+    pattern = ["git", "remote", ["add", "remove", "rm", "rename", "set-url", "set-head", "prune", "update"]],
     decision = "forbidden",
-    justification = "Deletes, renames or force-moves a branch, which throws away a ref the user made. Creating one is a git write too, which agents leave to the user.",
-    match = ["git branch -d old"],
-    not_match = ["git branch", "git branch -a", "git branch feature", "git branch feat/audit-runs main", "git branch -a --sort=-committerdate", "git branch --merged main", "git status"],
+    justification = "Changing remotes or fetching is a git write the user runs. Give them the command.",
+    match = ["git remote set-url origin example", "git remote update"],
+    not_match = ["git remote -v", "git remote get-url origin", "git remote show origin"],
 )
 
 prefix_rule(
-    pattern = ["git", "branch", "-D"],
+    pattern = ["git", "config", ["set", "unset", "rename-section", "remove-section", "edit", "-e", "--add", "--unset", "--unset-all", "--replace-all", "--rename-section", "--remove-section", "--edit"]],
     decision = "forbidden",
-    justification = "Deletes, renames or force-moves a branch, which throws away a ref the user made. Creating one is a git write too, which agents leave to the user.",
-    match = ["git branch -D feature"],
-    not_match = ["git branch", "git branch -a", "git branch feature", "git branch feat/audit-runs main", "git branch -a --sort=-committerdate", "git branch --merged main", "git status"],
+    justification = "Only the user changes git configuration. Give them the command.",
+    match = ["git config set user.name example", "git config --unset user.name"],
+    not_match = ["git config get user.name", "git config --list"],
 )
 
 prefix_rule(
-    pattern = ["git", "branch", "-m"],
+    pattern = ["git", "tag", ["-d", "--delete", "-f", "--force"]],
     decision = "forbidden",
-    justification = "Deletes, renames or force-moves a branch, which throws away a ref the user made. Creating one is a git write too, which agents leave to the user.",
-    match = ["git branch -m old new"],
-    not_match = ["git branch", "git branch -a", "git branch feature", "git branch feat/audit-runs main", "git branch -a --sort=-committerdate", "git branch --merged main", "git status"],
+    justification = "Only the user writes tags. Give them the command; the hook also blocks creating a tag by name.",
+    match = ["git tag -d old", "git tag --force latest"],
+    not_match = ["git tag", "git tag --list"],
 )
 
 prefix_rule(
-    pattern = ["git", "branch", "-M"],
+    pattern = ["git", "reflog", ["expire", "delete", "drop", "write"]],
     decision = "forbidden",
-    justification = "Deletes, renames or force-moves a branch, which throws away a ref the user made. Creating one is a git write too, which agents leave to the user.",
-    match = ["git branch -M main"],
-    not_match = ["git branch", "git branch -a", "git branch feature", "git branch feat/audit-runs main", "git branch -a --sort=-committerdate", "git branch --merged main", "git status"],
-)
-
-prefix_rule(
-    pattern = ["git", "branch", "-f"],
-    decision = "forbidden",
-    justification = "Deletes, renames or force-moves a branch, which throws away a ref the user made. Creating one is a git write too, which agents leave to the user.",
-    match = ["git branch -f main HEAD"],
-    not_match = ["git branch", "git branch -a", "git branch feature", "git branch feat/audit-runs main", "git branch -a --sort=-committerdate", "git branch --merged main", "git status"],
-)
-
-prefix_rule(
-    pattern = ["git", "branch", "--delete"],
-    decision = "forbidden",
-    justification = "Deletes, renames or force-moves a branch, which throws away a ref the user made. Creating one is a git write too, which agents leave to the user.",
-    match = ["git branch --delete old"],
-    not_match = ["git branch", "git branch -a", "git branch feature", "git branch feat/audit-runs main", "git branch -a --sort=-committerdate", "git branch --merged main", "git status"],
-)
-
-prefix_rule(
-    pattern = ["git", "branch", "--move"],
-    decision = "forbidden",
-    justification = "Deletes, renames or force-moves a branch, which throws away a ref the user made. Creating one is a git write too, which agents leave to the user.",
-    match = [],
-    not_match = ["git branch", "git branch -a", "git branch feature", "git branch feat/audit-runs main", "git branch -a --sort=-committerdate", "git branch --merged main", "git status"],
-)
-
-prefix_rule(
-    pattern = ["git", "branch", "--force"],
-    decision = "forbidden",
-    justification = "Deletes, renames or force-moves a branch, which throws away a ref the user made. Creating one is a git write too, which agents leave to the user.",
-    match = [],
-    not_match = ["git branch", "git branch -a", "git branch feature", "git branch feat/audit-runs main", "git branch -a --sort=-committerdate", "git branch --merged main", "git status"],
-)
-
-prefix_rule(
-    pattern = ["git", "checkout", "--"],
-    decision = "forbidden",
-    justification = "Only the discarding forms: a pathspec after `--` overwrites the worktree with no reflog to recover it from, `-f` does the same to the whole tree, and `-B` moves an existing branch. Every other form is a git write too, which agents leave to the user.",
-    match = ["git checkout -- src/app.ts"],
-    not_match = ["git checkout main", "git checkout -b feature", "git checkout HEAD~1", "git log --oneline -5"],
-)
-
-prefix_rule(
-    pattern = ["git", "checkout", "-f"],
-    decision = "forbidden",
-    justification = "Only the discarding forms: a pathspec after `--` overwrites the worktree with no reflog to recover it from, `-f` does the same to the whole tree, and `-B` moves an existing branch. Every other form is a git write too, which agents leave to the user.",
-    match = ["git checkout -f main"],
-    not_match = ["git checkout main", "git checkout -b feature", "git checkout HEAD~1", "git log --oneline -5"],
-)
-
-prefix_rule(
-    pattern = ["git", "checkout", "-B"],
-    decision = "forbidden",
-    justification = "Only the discarding forms: a pathspec after `--` overwrites the worktree with no reflog to recover it from, `-f` does the same to the whole tree, and `-B` moves an existing branch. Every other form is a git write too, which agents leave to the user.",
-    match = ["git checkout -B main origin/main"],
-    not_match = ["git checkout main", "git checkout -b feature", "git checkout HEAD~1", "git log --oneline -5"],
-)
-
-prefix_rule(
-    pattern = ["git", "checkout", "--force"],
-    decision = "forbidden",
-    justification = "Only the discarding forms: a pathspec after `--` overwrites the worktree with no reflog to recover it from, `-f` does the same to the whole tree, and `-B` moves an existing branch. Every other form is a git write too, which agents leave to the user.",
-    match = ["git checkout --force"],
-    not_match = ["git checkout main", "git checkout -b feature", "git checkout HEAD~1", "git log --oneline -5"],
-)
-
-prefix_rule(
-    pattern = ["git", "restore"],
-    decision = "forbidden",
-    justification = "Always rewrites index or worktree; no variant is safe enough to allow.",
-    match = ["git restore src/app.ts", "git restore --staged src/app.ts"],
-    not_match = ["git status"],
-)
-
-prefix_rule(
-    pattern = ["git", "stash"],
-    decision = "forbidden",
-    justification = "Moves uncommitted work somewhere the user did not put it.",
-    match = ["git stash", "git stash pop"],
-    not_match = ["git status"],
-)
-
-prefix_rule(
-    pattern = ["git", "switch", "-f"],
-    decision = "forbidden",
-    justification = "The forms that throw uncommitted work away or move an existing branch. Plain `git switch <branch>`, `-c` and `git switch -` refuse to run when they would lose work, so git guards them and this rule does not.",
-    match = ["git switch -f main"],
-    not_match = ["git switch main", "git switch -c feature", "git switch --create feature", "git status -sb"],
-)
-
-prefix_rule(
-    pattern = ["git", "switch", "-C"],
-    decision = "forbidden",
-    justification = "The forms that throw uncommitted work away or move an existing branch. Plain `git switch <branch>`, `-c` and `git switch -` refuse to run when they would lose work, so git guards them and this rule does not.",
-    match = ["git switch -C main"],
-    not_match = ["git switch main", "git switch -c feature", "git switch --create feature", "git status -sb"],
-)
-
-prefix_rule(
-    pattern = ["git", "switch", "--force"],
-    decision = "forbidden",
-    justification = "The forms that throw uncommitted work away or move an existing branch. Plain `git switch <branch>`, `-c` and `git switch -` refuse to run when they would lose work, so git guards them and this rule does not.",
-    match = ["git switch --force"],
-    not_match = ["git switch main", "git switch -c feature", "git switch --create feature", "git status -sb"],
-)
-
-prefix_rule(
-    pattern = ["git", "switch", "--discard-changes"],
-    decision = "forbidden",
-    justification = "The forms that throw uncommitted work away or move an existing branch. Plain `git switch <branch>`, `-c` and `git switch -` refuse to run when they would lose work, so git guards them and this rule does not.",
-    match = ["git switch --discard-changes main"],
-    not_match = ["git switch main", "git switch -c feature", "git switch --create feature", "git status -sb"],
-)
-
-prefix_rule(
-    pattern = ["git", "rebase"],
-    decision = "forbidden",
-    justification = "Rewrites history that may already be shared.",
-    match = ["git rebase -i HEAD~3"],
-    not_match = ["git log --graph"],
+    justification = "Reflog writes can destroy recovery history. Leave them to the user.",
+    match = ["git reflog expire --expire=now --all"],
+    not_match = ["git reflog", "git reflog show"],
 )
 
 prefix_rule(
     pattern = ["git", "commit", "--amend"],
     decision = "forbidden",
-    justification = "Rewrites the last commit; a plain commit stays allowed.",
+    justification = "Only new commits are permitted after the user asks. Give the user the amend command; the hook checks reordered flags too.",
     match = ["git commit --amend --no-edit"],
-    not_match = ["git commit -m \"feat: add thing\""],
+    not_match = ["git commit -m message"],
 )
 
 prefix_rule(
-    pattern = ["git", "rm"],
+    pattern = ["git", "push", ["-f", "--force", "--force-with-lease", "--force-if-includes", "-d", "--delete", "--mirror", "--prune"]],
     decision = "forbidden",
-    justification = "Removes tracked files from the worktree, not just the index.",
-    match = ["git rm src/app.ts", "git rm -r --cached ."],
-    not_match = ["rm -i src/app.ts"],
-)
-
-prefix_rule(
-    pattern = ["git", "gc"],
-    decision = "forbidden",
-    justification = "Prunes unreachable objects that are the recovery path for a bad reset.",
-    match = ["git gc --prune=now"],
-    not_match = ["git status"],
-)
-
-prefix_rule(
-    pattern = ["git", "prune"],
-    decision = "forbidden",
-    justification = "Same recovery-path destruction as gc.",
-    match = ["git prune"],
-    not_match = ["git remote prune origin"],
-)
-
-prefix_rule(
-    pattern = ["git", "reflog", "expire"],
-    decision = "forbidden",
-    justification = "The reflog is the last thing standing after a destructive command.",
-    match = ["git reflog expire --expire=now --all"],
-    not_match = ["git reflog"],
-)
-
-prefix_rule(
-    pattern = ["git", "update-ref"],
-    decision = "forbidden",
-    justification = "Moves refs beneath the porcelain, bypassing every other guard.",
-    match = ["git update-ref -d refs/heads/main"],
-    not_match = ["git show-ref"],
-)
-
-prefix_rule(
-    pattern = ["git", "worktree", "remove"],
-    decision = "forbidden",
-    justification = "Deletes a checkout that may hold uncommitted work, or the admin data that finds one. Only `list` is a read; `add` and `move` are git writes, which agents leave to the user.",
-    match = ["git worktree remove ../wt", "git worktree remove --force ../wt"],
-    not_match = ["git worktree add ../wt main", "git worktree add -b feat/audit ../wt main", "git worktree list"],
-)
-
-prefix_rule(
-    pattern = ["git", "worktree", "prune"],
-    decision = "forbidden",
-    justification = "Deletes a checkout that may hold uncommitted work, or the admin data that finds one. Only `list` is a read; `add` and `move` are git writes, which agents leave to the user.",
-    match = ["git worktree prune"],
-    not_match = ["git worktree add ../wt main", "git worktree add -b feat/audit ../wt main", "git worktree list"],
+    justification = "Only a plain push is permitted after the user asks. Leave remote history rewrites and ref deletion to the user.",
+    match = ["git push --force origin main", "git push --delete origin old"],
+    not_match = ["git push origin main"],
 )

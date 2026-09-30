@@ -1,69 +1,57 @@
-# No rule for `just`: these rules are global, an allow rule runs its command
-# outside the sandbox with no prompt, and any repo's justfile can hold anything.
-
-# No rule for `chezmoi diff` or `chezmoi status` either: both render templates,
-# and a template can run a command through `output` from any --source.
+# These prefixes can run without a tool approval. AGENTS.md still controls
+# whether a command is in scope; an allow rule is not the user's task request.
 
 prefix_rule(
-    pattern = ["git", "status"],
+    pattern = ["just", ["full-check", "lint", "prettier-check", "toml-check", "gitleaks-check", "gitleaks-pending", "gitleaks-staged", "diff"]],
     decision = "allow",
-    justification = "Read-only inspection.",
-    match = ["git status --short"],
-    not_match = ["git stash"],
+    justification = "Allow the repository's documented inspection and check recipes. Read unfamiliar recipes before running them.",
+    match = ["just full-check", "just diff"],
+    not_match = ["just apply", "just deploy", "just brew-bundle"],
 )
 
 prefix_rule(
-    pattern = ["git", "diff"],
+    pattern = ["chezmoi", ["diff", "status"]],
     decision = "allow",
-    justification = "Read-only inspection.",
-    match = ["git diff --stat"],
-    not_match = [],
+    justification = "Inspect pending changes without applying them.",
+    match = ["chezmoi diff", "chezmoi status"],
+    not_match = ["chezmoi apply"],
 )
 
 prefix_rule(
-    pattern = ["git", "log"],
+    pattern = ["git", ["status", "diff", "log", "show", "blame", "grep", "rev-parse", "rev-list", "ls-files", "ls-tree", "show-ref", "for-each-ref", "merge-base"]],
     decision = "allow",
-    justification = "Read-only inspection.",
-    match = ["git log --oneline -5"],
-    not_match = [],
+    justification = "Read-only git inspection; the Bash hook still rejects known write options.",
+    match = ["git status --short", "git diff --stat", "git log --oneline -5"],
+    not_match = ["git add file", "git switch main"],
 )
 
 prefix_rule(
-    pattern = ["git", "show"],
+    pattern = ["git", "stash", ["list", "show"]],
     decision = "allow",
-    justification = "Read-only inspection.",
-    match = ["git show HEAD"],
-    not_match = [],
-)
-
-prefix_rule(
-    pattern = ["git", "add"],
-    decision = "allow",
-    justification = "Staging is not destructive, and the pre-commit hook stages generated output.",
-    match = ["git add codex/config.toml"],
-    not_match = ["git rm codex/config.toml"],
+    justification = "Stash listing and inspection do not move work.",
+    match = ["git stash list", "git stash show -p"],
+    not_match = ["git stash", "git stash pop"],
 )
 
 prefix_rule(
     pattern = ["shellcheck"],
     decision = "allow",
-    justification = "A linter `just lint` runs; an agent checking its own work should not be interrupted.",
+    justification = "Static shell checking.",
     match = ["shellcheck scripts/bootstrap"],
-    not_match = [],
 )
 
 prefix_rule(
-    pattern = ["shfmt"],
+    pattern = ["shfmt", "-d"],
     decision = "allow",
-    justification = "A formatter `just lint` runs in check mode.",
+    justification = "Show formatter differences without writing files.",
     match = ["shfmt -d scripts/bootstrap"],
-    not_match = [],
+    not_match = ["shfmt -w scripts/bootstrap"],
 )
 
 prefix_rule(
     pattern = ["zsh", "-n"],
     decision = "allow",
-    justification = "Parses a script without running it; `zsh -c` is a different thing entirely.",
+    justification = "Parse shell syntax without executing it.",
     match = ["zsh -n dot_zshrc"],
     not_match = ["zsh -lc dot_zshrc"],
 )

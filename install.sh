@@ -32,9 +32,33 @@ copy() {
   for f in $merged; do
     [[ "${f%/*}" == "$1" ]] && excludes+=(--exclude "/${f##*/}")
   done
+  # The managed policy contains @HOME@ paths and is expanded separately.
+  [[ "$1" != codex ]] || excludes+=(--exclude "/requirements.toml")
   [[ -n "$dry" ]] || mkdir -p "$2"
   rsync -a ${dry:+"$dry"} --backup --suffix=.bak --exclude .DS_Store \
     ${excludes[@]+"${excludes[@]}"} "$repo/$1/" "$2/"
+}
+
+# Codex reads the managed macOS preference, not the user requirements file.
+# Keep the expanded file for inspection and use the config hook on other hosts.
+codex_requirements() {
+  local live="$HOME/.codex/requirements.toml" tmp encoded
+  if [[ -n "$dry" ]]; then
+    echo "expand codex/requirements.toml into $live"
+    [[ "$(uname -s)" != Darwin ]] || echo "install com.openai.codex managed requirements preference"
+    return
+  fi
+  tmp="$(mktemp)"
+  sed "s|@HOME@|$HOME|g" "$repo/codex/requirements.toml" > "$tmp"
+  if ! cmp -s "$tmp" "$live"; then
+    [[ ! -f "$live" ]] || cp "$live" "$live.bak"
+    install -m 600 "$tmp" "$live"
+  fi
+  rm -f "$tmp"
+  if [[ "$(uname -s)" == Darwin ]]; then
+    encoded="$(base64 < "$live" | tr -d '\n')"
+    defaults write com.openai.codex requirements_toml_base64 "$encoded"
+  fi
 }
 
 # merge <repo file> <home file>
@@ -74,6 +98,7 @@ copy opencode "$HOME/.config/opencode"
 for f in $merged; do
   merge "$f" "$HOME/.$f"
 done
+codex_requirements
 
 # Codex and Grok read ~/.agents/skills. Claude gets one symlink per skill into
 # it. Cursor gets real copies, because it skips a symlinked skill.

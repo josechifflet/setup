@@ -9,26 +9,26 @@
 # Keys not named here, the context7 API-key header among them, can go into
 # ~/.codex/config.toml by hand and stay there.
 
-# Prompt before leaving the sandbox; the sandbox keeps writes in the workspace
-# and network off. Full autonomy is one session away: `codex --yolo`.
+# Full Access for ordinary work; explicit prompt rules still require approval.
 approval_policy = "on-request"
 model = "gpt-6-astra"
 model_reasoning_effort = "high"
-sandbox_mode = "workspace-write"
+sandbox_mode = "danger-full-access"
 service_tier = "default"
 personality = "pragmatic"
 
-# Pin unnamed spawns so an Astra parent does not raise every subagent's usage.
-# Cap is 6 concurrent subagents, all spawned by the main session.
+# Bounded delegation: ordinary agents use Sol; planner.toml raises effort to high.
 [agents]
 enabled = true
-default_subagent_model = "gpt-6-sol"
+default_subagent_model = "gpt-6.1-sol"
 default_subagent_reasoning_effort = "medium"
-max_concurrent_threads_per_session = 6
+max_concurrent_threads_per_session = 3
 
 [features]
 hooks = true
 
+# macOS uses the managed hook in requirements.toml; this is the user-hook
+# fallback on other hosts and must pass Codex's hook trust review.
 # timeout is 10 rather than 5 because a hook that times out is Failed, not
 # Blocked: Codex lets the command through, so the guard fails open and the
 # generous bound is the safe one.
