@@ -17,11 +17,11 @@ sandbox_mode = "danger-full-access"
 service_tier = "default"
 personality = "pragmatic"
 
-# Bounded delegation: ordinary agents use Sol; planner.toml raises effort to high.
+# Bounded delegation: ordinary agents use Sol/xhigh; planner.toml selects Astra/high.
 [agents]
 enabled = true
 default_subagent_model = "gpt-6.1-sol"
-default_subagent_reasoning_effort = "medium"
+default_subagent_reasoning_effort = "xhigh"
 max_concurrent_threads_per_session = 3
 
 [features]
