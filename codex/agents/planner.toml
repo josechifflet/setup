@@ -25,8 +25,8 @@ Final gate: <repository's existing full gate or its available checks>
 
 Return the result directly to the parent. Do not create plan files, session hooks, goals, scheduled tasks or separate chats. The parent owns the native plan, execution, approvals and final verification.
 '''
-model = "gpt-6-astra"
-model_reasoning_effort = "high"
+model = "gpt-6.1-sol"
+model_reasoning_effort = "max"
 name = "planner"
 sandbox_mode = "read-only"
 

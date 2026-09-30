@@ -11,13 +11,13 @@
 
 # Full Access for ordinary work; explicit prompt rules still require approval.
 approval_policy = "on-request"
-model = "gpt-6-astra"
-model_reasoning_effort = "high"
+model = "gpt-6.1-sol"
+model_reasoning_effort = "max"
 sandbox_mode = "danger-full-access"
 service_tier = "default"
 personality = "pragmatic"
 
-# Bounded delegation: ordinary agents use Sol/xhigh; planner.toml selects Astra/high.
+# Bounded delegation: ordinary agents use Sol/xhigh; planner.toml selects Sol/max.
 [agents]
 enabled = true
 default_subagent_model = "gpt-6.1-sol"
