@@ -12,6 +12,8 @@ A record under work splits into three vertical panes, separated by one hairline 
 
 The three panes share one top edge and one bottom edge. Each pane's own start edge is the spine of everything inside it. The hairline between two panes is a third edge, and the pane on either side hangs from it.
 
+In the markup the left pane is a labelled `nav`, the center pane is the view's one `main`, and the right pane is a labelled `aside`, so assistive technology meets the same three regions the eye does.
+
 ### Sidebar
 
 The spine is the start edge of the icon column. Every row makes contact there with its glyph, and a second contact with the shared start edge of the labels, so the labels form a column of their own. A row is an outline glyph, then a word. Nothing else.

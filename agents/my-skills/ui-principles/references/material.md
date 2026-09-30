@@ -1,6 +1,6 @@
 # Material
 
-Law 16 rules depth. This sheet carries its values: the elevation levels, the shadow for each, the escalation from tone to hairline to border, transparency, the concentric radius sum, and what a dark surface spends instead of shadow.
+Law 16 rules depth. This sheet carries its values: the elevation levels and their stacking bands, the shadow for each, the escalation from tone to hairline to border, transparency, the concentric radius sum, and what a dark surface spends instead of shadow.
 
 ## Elevation
 
@@ -13,6 +13,8 @@ One scale per surface. Five levels is the whole vocabulary, and a level exists o
 - Level 4 — the blocking layer: a dialog, a sheet. It pairs with a scrim, and only its own overlays sit above it.
 
 A level is a height, not a style. Two objects at the same height take the same shadow, the same ring and the same radius logic, and a difference between them means a difference in height.
+
+Each level owns one stacking band, set as a token, and no `z-index` sits outside the bands. Levels 0 and 1 stay in the flow. Level 2 takes 10, level 4 takes 40, and level 3 takes 50, so a menu opened inside a dialog still clears it. A toast takes 60. An overlay renders outside any ancestor that clips or transforms it, through a portal, because `overflow: hidden` cuts it off and a transformed ancestor re-anchors `position: fixed` to itself.
 
 ## Shadow
 
@@ -38,6 +40,8 @@ Escalate in Law 5's order, one step at a time. A tone step is a background one o
 Alpha beats a solid color for every ring and every hairline. `oklch(0 0 0 / 0.1)` sits correctly over a white panel, a tinted panel, a photograph and a gradient. A solid `#e5e7eb` was picked against one background and reads as grime against the next. Black alpha over light and white alpha over dark inherit whatever tint sits beneath them, so the ring stays inside the palette Law 11 sets without carrying a hue of its own.
 
 Draw a hairline with `outline: 1px solid oklch(0 0 0 / 0.1)` and `outline-offset: -1px`. An outline adds no width or height at any offset and follows `border-radius`, so a ring can be added to a laid-out box without moving anything. A `border` changes the box, so it belongs where the line is part of the structure.
+
+An image takes the same inset hairline, `oklch(0 0 0 / 0.1)` in light and `oklch(1 0 0 / 0.1)` in dark, so a photograph whose edge matches the page keeps its boundary. A near-black neutral there reads as dirt on the edge.
 
 An inner highlight puts the light source back on the top edge: `inset 0 1px 0 0 oklch(1 0 0 / 0.08)` on a raised surface, and the same over a translucent one where the bright edge reads as light catching the material. One highlight per surface, on the edge nearest the light.
 

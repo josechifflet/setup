@@ -1,6 +1,6 @@
 # Typography
 
-Laws 14 and 15 rule the scale and the type. This sheet carries their numbers: ratios, roles, measure, leading, tracking, figures, wrapping and the WCAG floors.
+Laws 14 and 15 rule the scale and the type. This sheet carries their numbers: ratios, roles, measure, leading, tracking, figures, wrapping, the icons that sit with text for Laws 17 and 22, and the WCAG floors.
 
 ## Scale
 
@@ -40,6 +40,7 @@ Laws 14 and 15 rule the scale and the type. This sheet carries their numbers: ra
 
 - Tracking tightens as size rises. `3rem` and above: `-0.03em` to `-0.02em`. `1.5rem` to `3rem`: `-0.02em` to `-0.01em`. `1rem` to `1.5rem`: `-0.01em` to `0`.
 - Body at reading sizes takes `0`. Negative tracking on a wrapping paragraph costs legibility and returns nothing.
+- Uppercase belongs to two places: a pane's small section label and a chip's tag of four characters or fewer. A heading, a button and a sentence stay in sentence case.
 - Uppercase labels below `0.875rem` take `0.04em` to `0.08em`, commonly `0.05em`, because uppercase forms carry no lowercase sidebearings.
 - Weight below `1.125rem` (18px) stays at `400` or heavier. Weights `100` to `300` are display-only at `1.75rem` (28px) and up, and they still need checking against the background there.
 - A pairing of `400` body with `600` headings separates cleanly. `400` against `500` does not, and reads as a rendering accident.
@@ -53,7 +54,7 @@ Laws 14 and 15 rule the scale and the type. This sheet carries their numbers: ra
 ## Figures and tables
 
 - `font-variant-numeric: tabular-nums` (OpenType `tnum`) fixes every digit to one advance width. Apply it to any value that changes or that sits in a compared column: timers, counters, prices, percentages, table cells.
-- Proportional figures are the default and belong in prose, where fixed digit widths open visible gaps.
+- Proportional figures are the default and belong in prose, where fixed digit widths open visible gaps. A phone number, a postcode, a version or an ID is read as a string, not compared by place value, so it keeps them too.
 - `font-variant-numeric: lining-nums` (`lnum`) keeps digits at cap height for interface text. `oldstyle-nums` (`onum`) lets them sit on the baseline with ascenders and descenders, which suits running editorial prose only.
 - `font-variant-numeric: slashed-zero` (`zero`) separates `0` from `O` in IDs, codes, hashes and license keys.
 - `font-variant-numeric: diagonal-fractions` (`frac`) draws a real fraction instead of stacking a slash between two full-size digits.
@@ -76,6 +77,13 @@ Laws 14 and 15 rule the scale and the type. This sheet carries their numbers: ra
 - `text-transform` presents a case change without rewriting the stored string, so the value a search index, a screen reader and a translation see stays in natural case.
 - `text-align: justify` stretches word spaces until both edges line up, and with no hyphenation it opens rivers through the measure Law 15 caps.
 - Truncation is `text-overflow: ellipsis` with `overflow: hidden` and `white-space: nowrap` for one line, `line-clamp` for several. Both hide content, so the full value stays reachable.
+
+## Icons beside text
+
+- An icon takes its size from the text it sits with, `1em` to `1.25em` of it, drawn on the family's native grid of 16, 20 or 24 so strokes land on whole pixels.
+- Stroke tracks the weight of that text, in units of a 24-unit viewBox: `1.5` beside regular `400` text, `2` beside `500` to `600`, `2.5` beside `700`. One family at one grid stays one family across all three.
+- Outline is the resting form and filled the active one, where the set ships both. That pair is a state, not a second family.
+- A glyph's ink, not its box, sets the padding. Beside a label inside a button, the icon side takes about 2px less padding than the text side. A play triangle shifts about 2px toward its point; better, the SVG draws it centered by mass.
 
 ## Floors
 

@@ -1,6 +1,6 @@
 # Color
 
-Law 11 owns where color comes from and Law 9 what earns it. This sheet carries the values: category hues, status, chips, the neutral ramp, links, chart series and dark surfaces. Color is a data channel with a capacity.
+Law 11 owns where color comes from and Law 9 what earns it. This sheet carries the values: category hues, status, chips, the neutral ramp, contrast, links, chart series and dark surfaces. Color is a data channel with a capacity.
 
 ## Category hues
 
@@ -17,7 +17,7 @@ The six, each holding 3:1 against a white page:
 
 One surface carries one set. A sidebar of colored dots, a column of chips and a chart legend on the same screen draw from the same six, and the same hue means the same category in all three. Two sets on one surface make the hue mean nothing. Status is the one second set a surface may carry, because its word and glyph name it and the hue only confirms.
 
-Hue separates a set only at equal lightness, so every member sits near L `0.58`, amber a step above. That same equality lets a color-vision deficiency collapse red into green and blue into purple, so a set holding both of a pair gives each a second cue: a shape, a glyph or its label. A dot is 8px, and 8px of color reads as hue and nothing finer.
+Hue separates a set only at equal lightness, so every member sits near L `0.58`, amber a step above. Chroma matches in proportion, not in number: each hue sits near the same share of the most chroma its angle reaches at that lightness, which is why the raw values run from `0.18` to `0.28`. Two hues within 15° of each other read as one color, so no set spends two members that close. That same equality lets a color-vision deficiency collapse red into green and blue into purple, so a set holding both of a pair gives each a second cue: a shape, a glyph or its label. A dot is 8px, and 8px of color reads as hue and nothing finer.
 
 ## Status
 
@@ -32,7 +32,9 @@ Status is a fixed vocabulary, not a palette choice. Six meanings, bound once, re
 
 Neutral is a status. Draft, idle and unchanged sit on the ramp with no accent at all, which is Law 9's silent default arriving as color. A status hue on a routine state burns the one signal that says something changed.
 
-Green and red carry a direction, so a metric that falls where falling is good takes the meaning and not the arithmetic: cost down is green.
+Green and red carry a direction, so a metric that falls where falling is good takes the meaning and not the arithmetic: cost down is green. The direction is cultural too. Chinese markets, among others, read a gain in red, so gain and loss are locale tokens, never fixed hues.
+
+A status hue means one thing everywhere. The danger hue on an action that destroys nothing spends the warning a real destructive action needs.
 
 ## Chips
 
@@ -45,13 +47,13 @@ A chip is three parts in one hue plus a fourth decision. Tint background, satura
 
 The icon takes the chip's text color, since Law 14 gives peers in one context one color logic. A chip with a gray glyph and colored text reads as two decisions.
 
-Chip height sits at 20px to 24px with 6px to 8px of inline padding, and the label runs one step below body size at a raised weight. Uppercase suits a short tag of four characters or fewer; a word stays sentence case.
+Chip height sits at 20px to 24px with 6px to 8px of inline padding, and the label runs one step below body size at a raised weight. On a chip, uppercase suits a short tag of four characters or fewer, and a word stays sentence case. Section labels follow `typography.md`.
 
 A monochrome chip is the default for a closed-set value whose hue would retrieve nothing, such as a setting's current value: ramp-2 background, ramp-9 text, no hue. Hue is spent where the color is the retrieval key. An open string stays text, never a chip.
 
 ## Neutrals
 
-The ramp is tinted toward the accent hue at chroma `0.004` to `0.010`, which is Law 11's one family. Eleven steps, lightness first:
+The ramp is tinted toward the accent hue at chroma `0.004` to `0.010`, which is Law 11's default. A pure gray ramp at chroma `0` is a choice, not a defect. Eleven steps, lightness first:
 
 `0.99` `0.97` `0.94` `0.90` `0.83` `0.71` `0.58` `0.47` `0.37` `0.27` `0.18`
 
@@ -60,6 +62,12 @@ Jobs, from step 0: page, sunken panel, hover fill, hairline and disabled fill, b
 Contrast against the page: body at step 9 holds about 14:1 and secondary at step 7 about 6.6:1. Step 6 holds about 4.2:1, which clears the 3:1 floor for an icon, large text at 18.66px bold or 24px regular, and a boundary a control depends on, but not 4.5:1 for a word. Step 5 falls to 2.5:1 and is decoration or disabled.
 
 What stays on the ramp: every unchanged default, every unchecked box, every table rule, every secondary label, every disabled control, every decorative glyph and every icon that sits beside a label rather than carrying a status. A settings panel runs on the ramp, and the one blue toggle is the one setting that is on.
+
+## Contrast
+
+Every figure on this sheet is measured against a white page. A real foreground is measured against the surface it renders on — the chip tint, the hover fill, the sunken panel, the photograph — and a value nobody measured is never reported.
+
+WCAG 2 is the conformance floor. APCA is the second read, because it weighs polarity and size where WCAG 2 gives one ratio. Body text holds Lc 75 at minimum and 90 by preference. Other content text holds Lc 60, a headline of 36px or more Lc 45, and placeholder text, disabled text and control boundaries Lc 30. Lc 15 is the floor for anything meant to be seen at all. Near 75% perceived lightness even black text reaches only about Lc 60, so a mid-tone surface cannot carry body text in any ink. Take APCA from Color.js, per `tools.md`.
 
 ## Links
 

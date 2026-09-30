@@ -35,10 +35,10 @@ Past 300ms a user operating a functional surface waits, so only a full-height la
 
 ## Properties
 
-`transform` and `opacity` compose on the GPU: no layout, no paint, one frame of work. `clip-path` is the sanctioned third for a reveal, a wipe or a hold-to-confirm fill. `height` is tolerated on an accordion only, where no transform equivalent exists, and stays at 200ms because it costs layout every frame.
+`transform` and `opacity` compose on the GPU: no layout, no paint, one frame of work, and Chromium composites `filter` beside them. `clip-path` is the sanctioned property for a reveal, a wipe or a hold-to-confirm fill, but an engine that has not moved it to the compositor repaints the clipped box on every frame, so keep it to small boxes and short runs. `height` is tolerated on an accordion only, where no transform equivalent exists, and stays at 200ms because it costs layout every frame.
 
 - `width`, `height`, `margin`, `padding`, `top`, `left` and `inset` trigger layout, paint and composite on every frame.
-- `box-shadow`, `background-color`, `border-color` and `filter` trigger paint; animated `blur()` stays under 20px.
+- `box-shadow`, `background-color` and `border-color` trigger paint, and so does `filter` in an engine that does not composite it; animated `blur()` stays under 20px.
 - `transition: all` animates properties nobody chose, including ones added later. Name each property.
 - Percentages in `translate()` resolve against the element's own size, so `translateY(100%)` clears a sheet whatever its content.
 - A child transform driven from a custom property on the parent recalculates style for every child. Set `transform` on the element itself.
@@ -78,6 +78,7 @@ A spring carries velocity across the interruption, which is why a flicked elemen
 - A scroll reveal on functional UI, which carries a brand register onto a product surface.
 - Hover motion left ungated, since a tap fires a false hover. Wrap it in `@media (hover: hover) and (pointer: fine)`.
 - A theme swap, where every transitioned color fires at once and reads as a smear. Inject `*, *::before, *::after { transition: none !important }`, force a reflow, drop it on the next frame.
+- A focus ring, which appears on the frame focus lands. A ring that fades in lags every Tab press.
 - A state change that has no other channel. Color, an icon or a label carries the meaning; motion only carries the eye.
 - An animation whose only purpose is to look alive.
 
