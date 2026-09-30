@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""trees — lint behaviour trees (`.tree`) and list their leaves.
+"""trees — lint intent trees (`.tree`) and list their leaves.
 
   trees lint [--strict] <file|dir>...          path:line:col: level[code]: message
   trees paths [--smoke] [--aligned] <file|dir>...  path:line: root — given …, it should …
@@ -19,9 +19,14 @@ with lint errors: a misparsed tree would silently drop or invent leaves.
 `--smoke` follows the last child at every level, the happy path by convention.
 `--aligned` skips a tree with a `// DRAFT:` line: checking a draft tests a guess.
 
+A `// REFINES: <root> > … > it should …` line makes a tree a child of the
+outcome it names. `paths` prints `^ refines …` under each leaf of a child, and
+`> refined by path:line root` under an outcome that a tree in scope refines.
+
 `audit` lints every unit, then checks the home's layout against the disk: the
 index `## Homes` list, audited in turn, its `## Areas` list, each card's `## Units` list, `(no tree)` marks, root
-prefixes and repeated roots. It warns when a unit, an area or the home holds
+prefixes, repeated roots, and REFINES lines, resolved across every home it
+reads. It warns when a unit, an area or the home holds
 more leaves than the budget (defaults below, or the index's `Budget:` line). It
 ends with one summary line per area. The A2xx codes are listed in
 references/audit.md.
@@ -49,6 +54,8 @@ CONN_COR = '└'    # └
 PIPE = '│'        # │
 DASH = '─'        # ─
 ASSERT = 'it should '
+REFINES = '// REFINES:'
+SEP = ' > '
 
 
 def is_blank(s):
@@ -71,7 +78,7 @@ def find_connector(line):
 
 class Node:
     __slots__ = ('ln', 'col', 'ctype', 'label', 'line', 'lcol',
-                 'parent', 'children', 'is_last', 'draft')
+                 'parent', 'children', 'is_last', 'draft', 'refines')
 
     def __init__(self, ln, col, ctype, label, line, lcol):
         self.ln = ln
@@ -84,6 +91,7 @@ class Node:
         self.children = []
         self.is_last = True
         self.draft = False
+        self.refines = None  # (line, text) of the root's REFINES marker
 
 
 def check_trailing(D, ln, s):
@@ -111,6 +119,16 @@ def parse_tree(block, D):
 
     root = Node(rln, -3, None, rline.strip(), rline, -1)
     root.draft = any(s.strip().startswith('// DRAFT:') for _, s in block)
+    refs = [(ln, s.find('//') + 1, s.strip()[len(REFINES):].strip())
+            for ln, s in block if s.strip().startswith(REFINES)]
+    if refs:
+        ln, col, text = refs[0]
+        root.refines = (ln, text)
+        head, _, rest = text.partition(SEP)
+        if not head or not re.search(r'(^| > )it should ', rest):
+            D.append((ln, col, 'E206', "REFINES must read '// REFINES: <root> > it should …'"))
+        for ln, col, _ in refs[1:]:
+            D.append((ln, col, 'E206', 'a tree refines one outcome; split it into one tree per outcome'))
     parsed = []
     stack = [root]
 
@@ -375,13 +393,64 @@ def smoke_leaf(root):
     return None
 
 
-def effect_lines(node, depth, out):
+def outcomes(node, out):
+    """Every `it should` node under `node`, leaves and effects, in file order."""
+    for ch in node.children:
+        if ch.label.startswith(ASSERT):
+            out.append(ch)
+        outcomes(ch, out)
+    return out
+
+
+def names(rest, node):
+    """Whether `rest` is the node's label, after labels from its path in order."""
+    if rest == node.label:
+        return True
+    if not rest.endswith(SEP + node.label):
+        return False
+    left = rest[:-len(SEP + node.label)]
+    p = node.parent
+    while p is not None and p.col >= 0:
+        if left == p.label:
+            return True
+        if left.endswith(SEP + p.label):
+            left = left[:-len(SEP + p.label)]
+        p = p.parent
+    return False
+
+
+PLACES = re.compile(r'\s*\[[^\]]*\]$')
+
+
+def resolve(text, pool):
+    """For a REFINES text over (path, root) pairs: the trees its root names, and
+    the (path, root, node) outcomes it names. A root matches with or without places."""
+    head, _, rest = text.partition(SEP)
+    trees = [(p, r) for p, r in pool if head in (r.label, PLACES.sub('', r.label))]
+    return trees, [(p, r, n) for p, r in trees for n in outcomes(r, []) if names(rest, n)]
+
+
+def refined_by(files, aligned=False):
+    """Maps each outcome to the `> refined by` lines of the trees in `files` that refine it."""
+    pool = [(p, r) for p, roots in files for r in roots]
+    below = {}
+    for p, r in pool:
+        if r.refines and not (aligned and r.draft):
+            hits = resolve(r.refines[1], pool)[1]
+            if len(hits) == 1:
+                below.setdefault(hits[0][2], []).append('> refined by %s:%d %s' % (p, r.ln, r.label))
+    return below
+
+
+def effect_lines(node, depth, out, below):
     for e in node.children:
         out.append('%s+ %s' % ('    ' * depth, e.label))
-        effect_lines(e, depth + 1, out)
+        out.extend('    ' * (depth + 1) + s for s in below.get(e, ()))
+        effect_lines(e, depth + 1, out, below)
 
 
-def leaf_lines(path, roots, smoke, aligned=False):
+def leaf_lines(path, roots, smoke, aligned=False, below=None):
+    below = below or {}
     out = []
     for r in roots:
         if aligned and r.draft:
@@ -394,7 +463,10 @@ def leaf_lines(path, roots, smoke, aligned=False):
             collect_leaves(r, [], picks)
         for node, trail in picks:
             out.append('%s:%d: %s — %s' % (path, node.ln, r.label, ', '.join(trail)))
-            effect_lines(node, 1, out)
+            if r.refines:
+                out.append('    ^ refines %s' % r.refines[1])
+            out.extend('    ' + s for s in below.get(node, ()))
+            effect_lines(node, 1, out, below)
     return out
 
 
@@ -425,6 +497,8 @@ ZOOM = re.compile(r'\bZoom:\s*`?(product|contract|code)\b')
 # minutes, one sitting and one working day. references/zoom.md explains them.
 BUDGET = (12, 80, 1000)
 WARN_CODES = ('A210', 'A211', 'A212')
+# From coarsest to finest: a child keeps its parent's zoom or zooms in.
+ZOOMS = ('product', 'contract', 'code')
 
 
 def read_budget(text):
@@ -458,9 +532,37 @@ def read_quiet(path):
         return None
 
 
-def audit_home(home):
+def refine_findings(reg):
+    """A213–A215 for every REFINES line, over the (path, root, zoom) of every audited tree."""
+    F = []
+    pool = [(p, r) for p, r, _ in reg]
+    zoom_of = {r: z for _, r, z in reg}
+    for path, r, zoom in reg:
+        if not r.refines or SEP not in r.refines[1]:
+            continue    # a malformed line is already E206
+        ln, text = r.refines
+        head, _, rest = text.partition(SEP)
+        trees, hits = resolve(text, pool)
+        if not trees:
+            F.append((path, ln, 'A213', 'no tree has the root `%s`' % head))
+        elif not hits:
+            F.append((path, ln, 'A213', '`%s` has no outcome `%s`' % (head, rest)))
+        elif len(hits) > 1:
+            F.append((path, ln, 'A214', '`%s` matches %d outcomes in `%s`; add a label from its path'
+                      % (rest, len(hits), head)))
+        else:
+            pz = zoom_of[hits[0][1]]
+            if zoom in ZOOMS and pz in ZOOMS and ZOOMS.index(zoom) < ZOOMS.index(pz):
+                F.append((path, ln, 'A215', 'a `%s` tree refines a `%s` outcome; a child zooms in, never out'
+                          % (zoom, pz)))
+    return F
+
+
+def audit_home(home, reg=None):
     """Returns (findings, lint results, summary lines, unreadable paths)."""
     F, L, S, bad = [], [], [], []
+    top = reg is None
+    reg = [] if top else reg    # every tree of every home, for REFINES lines
     index = os.path.join(home, 'README.md')
     itext = read_quiet(index)
     if itext is None:
@@ -545,6 +647,7 @@ def audit_home(home):
                 L.append((path, D))
             unit_leaves = 0
             for r in roots:
+                reg.append((path, r, zoom))
                 prefix = r.label.split('::', 1)[0] if '::' in r.label else None
                 if zoom != 'code' and prefix != a:
                     F.append((path, r.ln, 'A206', 'root should start `%s::`' % a))
@@ -582,11 +685,13 @@ def audit_home(home):
         if not os.path.isdir(hdir):
             F.append((index, ln, 'A201', 'the index lists home `%s/`, which has no folder' % h))
             continue
-        hF, hL, hS, hbad = audit_home(hdir)
+        hF, hL, hS, hbad = audit_home(hdir, reg)
         F += hF
         L += hL
         S += ['%s/%s' % (h, line) for line in hS]
         bad += hbad
+    if top:
+        F += refine_findings(reg)
     return F, L, S, bad
 
 
@@ -712,10 +817,30 @@ orders::cancel order [ios]
    └── it should queue the cancellation and show it as pending
 """)
 
+PARENT = T("""
+orders::cancel order [web, ios]
+├── given the order has shipped
+│  └── it should offer no cancel action
+└── given the order has not shipped
+   └── when the customer cancels with a reason
+      └── it should show the order as "Cancelled"
+         ├── it should show the refund amount and the day it lands
+         └── it should send a cancellation email
+""")
+
+CHILD = T("""
+refunds::refund shown on cancel
+// REFINES: orders::cancel order > it should show the refund amount and the day it lands
+├── given the order was paid with store credit
+│  └── it should show the credit back on the account at once
+└── given the order was paid by card
+   └── it should show the full amount and a date 5 to 10 business days out
+""")
+
 CLEAN = [
     ('REST', REST), ('clamp', CLAMP), ('NotificationService', NOTIF),
     ('onOrderPlaced', ORDER), ('Comments', COMMENTS), ('MultipleTrees', MULTI),
-    ('Markers', MARKERS),
+    ('Markers', MARKERS), ('Parent', PARENT), ('Refines', CHILD),
 ]
 
 # Common Mistakes: WRONG must produce its code, CORRECT must not.
@@ -860,6 +985,19 @@ root
    └── it should b
       └── it should c
 """)
+E206F = T("""
+refunds::refund
+// REFINES: orders::cancel order
+└── when x
+   └── it should y
+""")
+E206G = T("""
+refunds::refund
+// REFINES: orders::a > it should x
+// REFINES: orders::b > it should y
+└── when x
+   └── it should y
+""")
 
 PRESENT = [
     ('WRONG#1 tee-for-last', W1, [('E103', 3)]),
@@ -878,6 +1016,8 @@ PRESENT = [
     ('E202 branch-under-assertion', E202F, [('E202', 3)]),
     ('E203 dangling-branch', E203F, [('E203', 2)]),
     ('E205 container-mismatch', E205F, [('E205', 6)]),
+    ('E206 malformed-refines', E206F, [('E206', 2)]),
+    ('E206 second-refines', E206G, [('E206', 3)]),
     ('W301 duplicate-sibling', W301F, [('W301', 4)]),
     ('W302 mixed-root-style', W302F, [('W302', 6)]),
     ('W304 deep-assertion', W304F, [('W304', 4)]),
@@ -900,6 +1040,7 @@ PATHS = [
     ('multi full', MULTI, False, [3, 5, 10, 12], 4),
     ('multi smoke', MULTI, True, [5, 12], 2),
     ('markers smoke', MARKERS, True, [8, 13], 2),
+    ('refines full', CHILD, False, [4, 6], 4),
 ]
 
 # The first MARKERS tree is a draft, so --aligned keeps only the second.
@@ -907,9 +1048,12 @@ ALIGNED = [('markers aligned', MARKERS, [13])]
 
 CLAMP_SMOKE = 't:7: clamp — when value is within range, it should return value unchanged'
 
+# The refined effect names its child, one level below the effect.
+REFINED_BY = '        > refined by c:1 refunds::refund shown on cancel'
+
 
 AUDIT_CLEAN = {
-    'README.md': '# Behaviours\n\n## Settings\n\n- Zoom: product.\n\n## Areas\n\n- `tickets/` — tickets.\n- `svc/` — services.\n',
+    'README.md': '# Intent\n\n## Settings\n\n- Zoom: product.\n\n## Areas\n\n- `tickets/` — tickets.\n- `svc/` — services.\n',
     'tickets/README.md': '# Tickets\n\n## Units\n\n1. `close-ticket.tree`\n2. `merge-tickets.tree` (no tree)\n',
     'tickets/close-ticket.tree': MARKERS.replace('orders::cancel order', 'tickets::close ticket'),
     'svc/README.md': '# Services\n\nZoom: code. Depth: exhaustive.\n\n## Units\n\n1. `order-service.tree`\n',
@@ -917,7 +1061,7 @@ AUDIT_CLEAN = {
 }
 
 AUDIT_BROKEN = {
-    'README.md': '# Behaviours\n\n## Areas\n\n- `orders/` — orders.\n- `ghost/` — gone.\n',
+    'README.md': '# Intent\n\n## Areas\n\n- `orders/` — orders.\n- `ghost/` — gone.\n',
     'loose.tree': 'orders::loose\n└── when x\n   └── it should y\n',
     'orders/README.md': '# Orders\n\n## Units\n\n1. `cancel-order.tree`\n2. `refund.tree` (no tree)\n3. `missing.tree`\n',
     'orders/cancel-order.tree': 'orders::cancel order\n└── when x\n   └── it should y\n',
@@ -938,15 +1082,47 @@ AUDIT_BUDGET_WANT = ['A210', 'A211', 'A212']
 # A root index that splits homes: the clean home as frontend/, a contract home as backend/.
 AUDIT_SPLIT = {'frontend/' + k: v for k, v in AUDIT_CLEAN.items()}
 AUDIT_SPLIT.update({
-    'README.md': '# Behaviours\n\n## Homes\n\n- `frontend/` — product.\n- `backend/` — contract.\n- `ghost/` — gone.\n',
+    'README.md': '# Intent\n\n## Homes\n\n- `frontend/` — product.\n- `backend/` — contract.\n- `ghost/` — gone.\n',
     'backend/README.md': '# Backend\n\n## Settings\n\n- Zoom: contract.\n\n## Areas\n\n- `orders/` — orders.\n',
     'backend/orders/README.md': '# Orders\n\n## Units\n\n1. `post-cancel.tree`\n',
-    'backend/orders/post-cancel.tree': 'orders::POST /orders/:id/cancel\n└── given no session\n   └── it should return 401\n',
+    # Refines an outcome in the other home: REFINES lines resolve across homes.
+    'backend/orders/post-cancel.tree': 'orders::POST /orders/:id/cancel\n'
+                                       '// REFINES: tickets::close ticket > it should offer no cancel action\n'
+                                       '└── given no session\n   └── it should return 401\n',
 })
 AUDIT_SUMMARY = ['svc/  units 1 · trees 1 · leaves 1 · drafts 0 · open 0 · out of scope 0',
                  'tickets/  units 1 · trees 2 · leaves 3 · drafts 1 · open 1 · out of scope 1']
 AUDIT_SPLIT_SUMMARY = ['backend/orders/  units 1 · trees 1 · leaves 1 · drafts 0 · open 0 · out of scope 0'] + [
     'frontend/' + line for line in AUDIT_SUMMARY]
+
+# CHILD resolves at the same zoom and the API tree zooms in; broken.tree holds one
+# tree per finding: no such root, no such outcome, two outcomes, and a zoom out.
+AUDIT_REFINE = {
+    'README.md': '# Intent\n\n## Settings\n\n- Zoom: product.\n\n## Areas\n\n'
+                 '- `orders/` — orders.\n- `refunds/` — refunds.\n- `api/` — the API.\n',
+    'orders/README.md': '# Orders\n\n## Units\n\n1. `cancel-order.tree`\n',
+    'orders/cancel-order.tree': PARENT,
+    'refunds/README.md': '# Refunds\n\n## Units\n\n1. `refund-shown-on-cancel.tree`\n2. `broken.tree`\n',
+    'refunds/refund-shown-on-cancel.tree': CHILD,
+    'refunds/broken.tree': '\n\n\n'.join(
+        'refunds::%s\n// REFINES: %s\n└── when x\n   └── it should y' % pair for pair in (
+            ('a', 'orders::ghost > it should x'),
+            ('b', 'orders::cancel order > it should vanish'),
+            ('c', 'api::POST /orders/:id/cancel > it should return 200'),
+            ('d', 'api::POST /orders/:id/cancel > given the order is pending > it should return 200'),
+        )) + '\n',
+    'api/README.md': '# API\n\nZoom: contract.\n\n## Units\n\n1. `post-cancel.tree`\n',
+    'api/post-cancel.tree': T("""
+api::POST /orders/:id/cancel
+// REFINES: orders::cancel order > it should show the order as "Cancelled"
+├── given the order is already cancelled
+│  └── it should return 200
+└── given the order is pending
+   └── it should return 200
+      └── it should publish {OrderCancelled} once
+"""),
+}
+AUDIT_REFINE_WANT = ['A213', 'A213', 'A214', 'A215']
 
 
 def audit_fixture(files):
@@ -968,7 +1144,8 @@ def run_self_test():
     for name, files, want, summary in (('audit clean', AUDIT_CLEAN, [], AUDIT_SUMMARY),
                                        ('audit broken', AUDIT_BROKEN, AUDIT_WANT, None),
                                        ('audit budget', AUDIT_BUDGET, AUDIT_BUDGET_WANT, None),
-                                       ('audit split', AUDIT_SPLIT, ['A201'], AUDIT_SPLIT_SUMMARY)):
+                                       ('audit split', AUDIT_SPLIT, ['A201'], AUDIT_SPLIT_SUMMARY),
+                                       ('audit refine', AUDIT_REFINE, AUDIT_REFINE_WANT, None)):
         tmp = audit_fixture(files)
         F, L, S, bad = audit_home(tmp)
         shutil.rmtree(tmp)
@@ -999,6 +1176,13 @@ def run_self_test():
     if out != [CLAMP_SMOKE]:
         failed += 1
         msgs.append('FAIL paths sentence: got %r' % out)
+    else:
+        passed += 1
+    files = [('p', parse_text(PARENT)[0]), ('c', parse_text(CHILD)[0])]
+    out = leaf_lines('p', files[0][1], False, below=refined_by(files))
+    if REFINED_BY not in out:
+        failed += 1
+        msgs.append('FAIL paths refined by: got %r' % out)
     else:
         passed += 1
     for name, text in CLEAN:
@@ -1101,6 +1285,7 @@ def main(argv):
         return audit_main(targets, '--strict' in opts)
 
     rc = 0
+    parsed = []
     for f in collect(targets):
         got = read(f)
         if got is None:
@@ -1117,7 +1302,11 @@ def main(argv):
             sys.stderr.write('trees: %s: lint errors; run trees lint %s\n' % (path, path))
             rc = max(rc, 1)
             continue
-        out = leaf_lines(path, roots, '--smoke' in opts, '--aligned' in opts)
+        parsed.append((path, roots))
+    # A refined outcome names its children, so every file is parsed before any prints.
+    below = refined_by(parsed, '--aligned' in opts)
+    for path, roots in parsed:
+        out = leaf_lines(path, roots, '--smoke' in opts, '--aligned' in opts, below)
         if out:
             sys.stdout.write('\n'.join(out) + '\n')
     return rc

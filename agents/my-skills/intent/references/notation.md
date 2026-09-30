@@ -46,6 +46,7 @@ A line that starts with `//` is a comment. Put markers directly under the root, 
 - `// DRAFT: from <source> -- not aligned`: nobody has confirmed the tree. `align` deletes this line.
 - `// OPEN: <question>?`: the authority leaves it unanswered or states it two ways. No branch settles it until the user answers. Ask one question the intent owner can answer in a sentence without reading code: no file references, at most two per tree. An inconsistency only an engineer can judge is a code finding for the report, not an OPEN line.
 - `// OUT OF SCOPE: <what> -- <why>`: a deliberate gap. It tells a reader the gap was decided, not forgotten.
+- `// REFINES: <parent root> > <outcome>`: the tree is a child of one outcome, a leaf or an effect, of another tree. It holds only on the parent's path to that outcome. Name the parent's root with or without its places. When the outcome's label repeats in the parent, add labels from its path, in order, until one outcome matches: ``// REFINES: OrderService::cancel > when the status is `paid` > it should write …``. One per tree; a child of two outcomes is two trees.
 
 Other comments are allowed. Keep them rare.
 
@@ -97,6 +98,6 @@ The linter reports each of these with its line and column.
 Run these from this skill's directory. A directory argument means every `.tree` under it.
 
 - `scripts/trees lint <file|dir>` prints `path:line:col: error[E…]: message` per problem. Fix every error. `--strict` also fails on warnings.
-- `scripts/trees paths <file|dir>` prints one sentence per leaf, `path:line: root — given …, when …, it should …`, with its effects below it after `+`.
+- `scripts/trees paths <file|dir>` prints one sentence per leaf, `path:line: root — given …, when …, it should …`, with its effects below it after `+`. A child's leaves add `^ refines <parent root> > <outcome>`. An outcome that a tree in scope refines adds `> refined by path:line root`.
 - `--smoke` prints only the smoke leaf of each tree. `--aligned` skips drafts.
-- `scripts/trees audit <home>` lints every unit, checks the index and the area cards against the disk, and prints one summary line per area. `references/audit.md` lists its codes.
+- `scripts/trees audit <home>` lints every unit, checks the index and the area cards against the disk, resolves every `// REFINES:` line across the homes it reads, and prints one summary line per area. `references/audit.md` lists its codes.

@@ -18,7 +18,7 @@ cd setup
 3. Skills are copied into `~/.agents/skills` and `~/.cursor/skills`, and each is linked into `~/.claude/skills`. A skill folder with the same name is replaced; other skills are left alone.
 4. Codex's `requirements.toml` expands home paths. On macOS, it is also installed as the managed `com.openai.codex` preference so the required git hook runs. Other hosts use the hook in `config.toml`, after Codex's hook trust review.
 
-Copies, not symlinks: every agent writes state into its home, and a symlink would carry it back into the repo. Re-run `install.sh` after you pull. It never deletes, so remove a file the repo dropped by hand: an older install leaves obsolete files in `~/.claude/agents` and `~/.codex/agents` (keep `planner.md` and `planner.toml`, respectively), and the old `~/.cursor/agents`, `~/.grok/agents` and `~/.config/opencode/agent` folders behind.
+Copies, not symlinks: every agent writes state into its home, and a symlink would carry it back into the repo. Re-run `install.sh` after you pull. It never deletes, so remove a file the repo dropped by hand: an older install leaves obsolete files in `~/.claude/agents` and `~/.codex/agents` (keep `planner.md` and `planner.toml`, respectively), and the old `~/.cursor/agents`, `~/.grok/agents` and `~/.config/opencode/agent` folders behind. The `behaviour` skill is now `intent`, so delete `behaviour` from `~/.agents/skills`, `~/.cursor/skills` and `~/.claude/skills`.
 
 ## Layout
 
@@ -47,10 +47,10 @@ The models, login method and themes are mine. Edit `claude/settings.json`, `code
 
 Mine, under the repo's MIT license:
 
-- `behaviour`: writes behaviour trees people align on, then audits, checks and verifies the code against them. Its `verify` mode uses `typesafe-ai`.
 - `bet`: plans test coverage as a Branching Expectation Tree.
 - `context-doctor`: trims AGENTS.md, CLAUDE.md, rules and skills to what earns its tokens.
 - `handoff`: compacts a conversation into a handoff document and a kickoff prompt.
+- `intent`: writes intent trees people align on, from epics and user stories down to acceptance criteria, refining an outcome into finer trees, then audits, checks and verifies the code against them. Its `verify` mode uses `typesafe-ai`.
 - `paper-use`: builds, mirrors and audits Paper design files.
 - `rate`: scores work on every axis until each is 10.
 - `ui-principles`: rules for clean, scannable UI layout.

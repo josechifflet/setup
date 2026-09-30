@@ -1,0 +1,5 @@
+interface:
+  display_name: "Intent"
+  short_description: "Intent trees humans align on and agents check"
+policy:
+  allow_implicit_invocation: false

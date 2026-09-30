@@ -19,8 +19,8 @@ Climb one rung at a time, and only as high as the receipt demands. Each rung cap
 
 ## Temporary tests
 
-- Write one file per unit, named with `behaviour-verify-<stamp>`, where and how the test runner discovers tests. Mirror an existing test's setup.
-- Assert the leaf's outcome and every effect. Set up each earlier sibling on the path to fail, because the first match wins.
+- Write one file per unit, named with `intent-verify-<stamp>`, where and how the test runner discovers tests. Mirror an existing test's setup.
+- Assert the leaf's outcome and every effect. Set up each earlier sibling on the path to fail, because the first match wins. For a child, reach its parent's path first.
 - Prove the test can fail: invert one expectation, run it, watch it fail, restore it. A test that cannot fail proves nothing.
 - Run only that file. Never edit production code or an existing test. Use only stamped records.
 - Delete every temporary file before you report, and confirm with `git status --porcelain` that none is left. After an interrupted run, find leftovers by the stamp.
@@ -41,7 +41,7 @@ TypeSafe judges what the evidence means. Ask all of a leaf's questions in one re
     { "rung": "code", "source": "src/orders/service.ts:41-52", "excerpt": "…" },
     {
       "rung": "temporary test",
-      "source": "test/behaviour-verify-V09281430.test.ts",
+      "source": "test/intent-verify-V09281430.test.ts",
       "excerpt": "…",
       "result": "passed",
       "can_fail": "yes: it failed when one expectation was inverted"
@@ -50,7 +50,7 @@ TypeSafe judges what the evidence means. Ask all of a leaf's questions in one re
 }
 ```
 
-Write `result` as `passed` or `failed: <message>`, and keep the can-fail proof in `can_fail`. A mixed string such as "passed; failed when inverted" pulls probability toward `contradicts`.
+For a child, `conditions` starts with its parent's path to the refined outcome. Write `result` as `passed` or `failed: <message>`, and keep the can-fail proof in `can_fail`. A mixed string such as "passed; failed when inverted" pulls probability toward `contradicts`.
 
 Two Choice questions, worded the same way every time:
 

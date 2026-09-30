@@ -19,6 +19,9 @@ Run `scripts/trees audit <home>`. On a root index that splits homes, it audits e
 - `A206`: a root does not start with its area, outside `code` zoom.
 - `A207`: two trees share the same root.
 - `A208`: a unit sits outside any area.
+- `A213`: a `// REFINES:` line names a root no tree has, or an outcome its tree lacks.
+- `A214`: a `// REFINES:` line matches more than one outcome. Add a label from the outcome's path.
+- `A215`: a child zooms out: a `product` tree refines a `contract` or `code` outcome, or a `contract` tree a `code` one.
 - `A210`, `A211`, `A212`: a unit, an area or the home holds more leaves than its budget. These are warnings; `--strict` fails on them. `references/zoom.md` says how to cut back.
 
 ### 2. Language
@@ -34,7 +37,8 @@ Run `scripts/trees audit <home>`. On a root index that splits homes, it audits e
 - Order: a refusal after the happy path, or a smoke path that ends in a refusal.
 - Unreachable: an earlier sibling always matches first, so a later one never runs.
 - Coverage: at `full` or `exhaustive` depth, siblings leave a case out, or one place refuses what another place accepts.
-- Duplicates: two units state the same behaviour, or one behaviour appears at two zooms. They will drift apart.
+- Duplicates: two units state the same behaviour, or one decision appears at two zooms. They will drift apart. A child that refines an outcome is no duplicate, unless it repeats the parent's conditions or outcome.
+- Refinement: a child contradicts the outcome it refines, promises less or more than it, or refines an outcome that fails the test in `references/zoom.md`.
 
 ### 4. Authority
 
@@ -51,7 +55,7 @@ Run `scripts/trees audit <home>`. On a root index that splits homes, it audits e
 
 ## Fan-out
 
-For a large home, give each area its own subagent for layers 2 to 5, at most four at once. Each returns its findings and its `trees paths` output. Then run the cross-area part of layers 2 and 3 yourself over all the leaf sentences: contradictions and naming drift across areas hide between subagents.
+For a large home, give each area its own subagent for layers 2 to 5, at most four at once. Each returns its findings and its `trees paths` output. Then run the cross-area part of layers 2 and 3 yourself over all the leaf sentences: contradictions, naming drift and children in another area than their parent hide between subagents.
 
 ## Findings
 

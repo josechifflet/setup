@@ -2,6 +2,8 @@
 
 ## Methods
 
+A child's leaves hold on its parent's path to the outcome it refines, named by the `^ refines` line under each. Treat that path as the first conditions, and reach them before the child's own. Check each level at its own zoom: a parent's verdict stands on its own evidence, and a child's `FAIL` is reported beside the outcome it refines.
+
 ### trace: read the code
 
 Treat a leaf's `given` lines as preconditions and its `when` lines as inputs. Assume every earlier sibling on the path fails, because the first match wins. Follow the code along that path to the outcome.
@@ -49,7 +51,7 @@ When the tool can spawn subagents, give each area its own, at most four at once.
 
 ```text
 Check <kind> by <method>, stamp <stamp>, area <home>/<area>/.
-Read <home>/README.md, then the area card, then every unit in card order.
+Read <home>/README.md, then the area card, then every unit in card order. For a child, read the tree it refines first.
 Leaves to check:
 <trees paths output for this area>
 <How to reach the software: URLs, viewports, commands, sign-in, test command.>
