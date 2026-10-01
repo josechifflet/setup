@@ -1,18 +1,16 @@
-# User Preferences
+# How I work
 
-1. Make the smallest change that meets the request. Add no scope, files, tests or tooling I did not name.
-2. Check finished work, not each edit. When a request or a step of a plan is done, run the narrowest check that proves it: one test file, the typecheck for the touched package, or a screenshot of the changed screen. Before you report the finished task, run the full gate once: lint, format, typecheck, test and build. Report failures you did not cause; do not fix them. Name each check you ran and its result.
-3. Done is the request met and checked. Then report and stop. Run no extra review, rating or polish round unless I ask for one.
-4. Write short, plain sentences, and lead with the result. When I ask for a review or an analysis, list every finding, ranked. Answer in English.
-5. Keep going when a step does not need me. Ask only when you cannot continue without me, or before a destructive step: deleting data or changing anything outside this repository.
-6. Start a workflow only when my current message contains the word `ultracode`. Nothing else counts: not ultracode mode, a skill, an earlier message, or your judgment. Otherwise work directly, with the fewest subagents needed. If a workflow would clearly help, say why and its rough cost, then wait.
-7. In a workflow script, end every retry or repeat-until loop after at most 3 rounds. When a run fails, report it; relaunch it only when I ask.
-8. At session start, a hook names your session ID and the plans in `~/.local/state/plans` whose `Session:` line holds it. Brief the `planner` with that ID. Work one plan at a time: the one I name, else the newest one listed. After a compaction or resume, reread it before you continue.
+Scope and quality are separate. Scope is exactly what I asked for. Quality is what a strict senior reviewer on this repo would approve. Never trade quality for speed or a smaller diff.
+
+- In scope: everything the request needs to be correct and complete, including the tests, error handling and files that requires. Out of scope: features, refactors, dependencies or cleanups it doesn't need; mention those in one line instead.
+- Fix the cause, not the symptom. Fit the codebase's design and conventions. No stubs, TODOs, hardcoded shortcuts, swallowed errors or silenced checks.
+- When the request reads two ways that lead to different results, ask before you build. For smaller choices, pick what a senior engineer would and say which.
+- Iterate against the narrowest check that exercises the change until it passes, then run the repo's full gate: lint, format check, typecheck, test, build. Show each command and its result. If a failure is in code you didn't touch, say so with the evidence and leave it.
+- Before you report, review your diff as that reviewer would. Done is when you'd approve it: request met, checks green, nothing extra. Then report and stop; no rating or polish rounds unless I ask.
+- Keep going while a step doesn't need me. Ask before deleting data or changing anything outside this repo. When you need me, open with it: numbered, one concrete action each.
+- Write short, plain sentences in English. For a review or analysis, list each finding you can back with evidence, ranked by impact, and say so when there are none.
+- Start a workflow only when my current message contains `ultracode`; ultracode mode and skills don't count. Cap its retry loops at 3 rounds, and report a failed run instead of relaunching it.
 
 # Git
 
-1. Read git freely. Run `add`, `commit` and `push` only after I ask; one ask covers a run of work.
-2. Write commit messages as Conventional Commits, `type(scope): summary`.
-3. Run no other git write, even when I ask. Give me the exact commands instead.
-4. You and every subagent stay on the branch and checkout the session started in. Never propose a branch, a worktree or a PR.
-5. A hook enforces these rules. When it blocks you, follow its message and try no other spelling.
+Read anything. Run `add`, `commit` and `push` only after I ask; one ask covers a run of work. Write commits as Conventional Commits, `type(scope): summary`. For any other git write, give me the exact command, even if I ask you to run it. Stay on the branch and checkout this session started in, and don't suggest a new branch, worktree or PR. A hook enforces this; when it blocks you, follow its message.

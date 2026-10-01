@@ -6,8 +6,8 @@ set -euo pipefail
 # a plan survives compaction and resume. A pointer, not the plan: a plan can
 # outgrow the 10,000-character cap on hook output, and its Rules line already
 # says to reread it. Ownership lives in the file, not its name, so a plan handed
-# to another session moves with it. The output states facts; CLAUDE.md says
-# what to do with them.
+# to another session moves with it. The one instruction the output carries
+# matters only when a plan exists, so it rides here instead of CLAUDE.md.
 
 { payload=$(< /dev/stdin); } 2> /dev/null || payload=$(cat)
 id=$(sed -n 's/.*"session_id" *: *"\([^"]*\)".*/\1/p' <<< "$payload")
@@ -25,5 +25,5 @@ while IFS= read -r plan; do
 done < <(ls -t -- "${plans[@]}")
 
 if [[ -n $owned ]]; then
-  printf 'Plans this session owns, newest first:\n%s' "$owned"
+  printf 'Plans this session owns, newest first. Work the one the user names, else the first; reread it before you continue:\n%s' "$owned"
 fi

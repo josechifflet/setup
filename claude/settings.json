@@ -23,10 +23,10 @@
       "serverUrl": "https://drivemcp.googleapis.com/mcp/*"
     }
   ],
-  "disableArtifact": true,
   "disableAutoMode": "disable",
   "disableClaudeAiConnectors": true,
   "disableRemoteControl": true,
+  "enableArtifact": false,
   "enabledPlugins": {
     "context7@claude-plugins-official": true,
     "paper-desktop@paper": true,
@@ -41,7 +41,6 @@
     "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "2",
     "CLAUDE_CODE_THRIFTY_SONIC": "0",
     "DISABLE_ERROR_REPORTING": "1",
-    "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
     "GIT_EDITOR": "true",
     "GIT_MERGE_AUTOEDIT": "no",
     "GIT_SEQUENCE_EDITOR": "true"

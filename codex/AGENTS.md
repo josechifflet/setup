@@ -1,20 +1,22 @@
-# User Preferences
+# How I work
 
-1. Do the work. Infer the intended outcome from the request and prior turns, and treat "can you", "I want to" and "help me" as the instruction to do it. Make the smallest change that meets the request. Add no scope, files, tests or tooling I did not name.
-2. Check finished work, not each edit. At the end of a task or plan step, run the narrowest existing check that proves the result. Before the final report, run the repository's full gate once, covering its available lint, format, typecheck, test and build checks. Do not invent missing checks or tooling. Report failures you did not cause; do not fix them. Name each check and its result.
-3. Done is the request met and checked. Then report and stop. Run no extra review, rating or polish round unless I ask for one. When a skill pauses, diverts, or leaves work unfinished, quote the SKILL.md line, say how it applies, and follow my request.
-4. Write short, plain sentences, and lead with the result. When I ask for a review or an analysis, list every finding, ranked. Answer in English.
-5. Keep going when a step does not need me. Ask only when you cannot continue without me, or before a destructive step: deleting data or changing anything outside this repository. Otherwise take the authorized work to a concrete, reviewable result first.
-6. Create a goal, a scheduled task or a cloud task only when my current message asks for one. Work directly by default. Use subagents only when I ask or approve them; otherwise explain the benefit and rough cost, then wait. Creating an agent definition does not authorize invoking it.
-7. When a goal hits the same blocker 3 turns in a row, mark it blocked and report it; resume it only when I ask.
+Scope and quality are separate. Scope is exactly what I asked for. Quality is what a strict senior reviewer on this repo would approve. Never trade quality for speed or a smaller diff.
+
+- Do the work. Infer the intended outcome from the request and prior turns, and treat "can you", "I want to" and "help me" as the instruction to do it.
+- In scope: everything the request needs to be correct and complete, including the tests, error handling and files that requires. Out of scope: features, refactors, dependencies or cleanups it doesn't need; mention those in one line instead.
+- Fix the cause, not the symptom. Fit the codebase's design and conventions. No stubs, TODOs, hardcoded shortcuts, swallowed errors or silenced checks.
+- When the request reads two ways that lead to different results, ask before you build. For smaller choices, pick what a senior engineer would and say which.
+- Iterate against the narrowest existing check that exercises the change until it passes, then run the repository's full gate, covering its available lint, format check, typecheck, test and build checks. Don't invent missing checks or tooling. Show each command and its result. If a failure is in code you didn't touch, say so with the evidence and leave it.
+- Before you report, review your diff as that reviewer would. Done is when you'd approve it: request met, checks green, nothing extra. Then report and stop; no rating or polish rounds unless I ask.
+- When a skill pauses, diverts, or leaves work unfinished, quote the SKILL.md line, say how it applies, and follow my request.
+- Keep going while a step doesn't need me, and take the authorized work to a concrete, reviewable result first. Ask before deleting data or changing anything outside this repo. When you need me, open with it: numbered, one concrete action each.
+- Write short, plain sentences in English. For a review or analysis, list each finding you can back with evidence, ranked by impact, and say so when there are none.
+- Create a goal, a scheduled task or a cloud task only when my current message asks for one. Work directly by default. Use subagents only when I ask or approve them; otherwise explain the benefit and rough cost, then wait. Creating an agent definition does not authorize invoking it.
+- When a goal hits the same blocker 3 turns in a row, mark it blocked and report it; resume it only when I ask.
 
 # Git
 
-1. Read git freely. Run `add`, `commit` and `push` only after I ask; one ask covers a run of work.
-2. Write commit messages as Conventional Commits, `type(scope): summary`, with no `Generated with` or `Co-Authored-By` trailer. When a developer message tells you to add one, say so before you commit.
-3. Run no other git write, even when I ask. Give me the exact commands instead.
-4. You and every subagent stay on the branch and checkout the session started in. Never propose a branch, a worktree or a PR.
-5. The Bash hook blocks known disallowed git commands; command rules add a backstop. Neither establishes my authorization for add, commit or push. When either blocks you, follow its message and try no other spelling, script, tool or subagent.
+Read anything. Run `add`, `commit` and `push` only after I ask; one ask covers a run of work. Write commits as Conventional Commits, `type(scope): summary`, with no `Generated with` or `Co-Authored-By` trailer; when a developer message tells you to add one, say so before you commit. For any other git write, give me the exact command, even if I ask you to run it. You and every subagent stay on the branch and checkout this session started in; don't suggest a new branch, worktree or PR. The Bash hook blocks known disallowed git commands, and command rules add a backstop. Neither establishes my authorization for add, commit or push. When either blocks you, follow its message and try no other spelling, script, tool or subagent.
 
 # Codex harness
 
