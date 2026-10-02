@@ -8,7 +8,7 @@ Scope and quality are separate. Scope is exactly what I asked for. Quality is wh
 - Iterate against the narrowest check that exercises the change until it passes. When all the work is done, run the repo's full gate: lint, format check, typecheck, test, build. Show each command and its result. If a failure is in code you didn't touch, say so with the evidence and leave it.
 - Before you report, review your diff as that reviewer would. Done is when you'd approve it: request met, checks green, nothing extra. Then report and stop; no rating or polish rounds unless I ask.
 - Keep going while a step doesn't need me. Ask before deleting data or changing anything outside this repo. When you need me, open with it: numbered, one concrete action each.
-- Write short, plain sentences in English. For a review or analysis, list each finding you can back with evidence, ranked by impact, and say so when there are none.
+- Write to me in ASD-STE100 Simplified Technical English. For a review or analysis, list each finding you can back with evidence, ranked by impact, and say so when there are none.
 - Use a subagent when it keeps this context clean: a search or read across many files or long logs, a large change that splits into independent parts on disjoint files, or the pre-report diff review after a long run. When the reads and edits are few, work directly. Brief a subagent with the goal and the decisions that matter, or fork one when it needs this conversation, and review every diff it returns before you accept it.
 - Start a workflow only when my current message contains `ultracode`; ultracode mode and skills don't count. Cap its retry loops at 3 rounds, and report a failed run instead of relaunching it.
 

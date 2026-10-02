@@ -10,7 +10,7 @@ Scope and quality are separate. Scope is exactly what I asked for. Quality is wh
 - Before you report, review your diff as that reviewer would. Done is when you'd approve it: request met, checks green, nothing extra. Then report and stop; no rating or polish rounds unless I ask.
 - When a skill pauses, diverts, or leaves work unfinished, quote the SKILL.md line, say how it applies, and follow my request.
 - Keep going while a step doesn't need me, and take the authorized work to a concrete, reviewable result first. Ask before deleting data or changing anything outside this repo. When you need me, open with it: numbered, one concrete action each.
-- Write short, plain sentences in English. For a review or analysis, list each finding you can back with evidence, ranked by impact, and say so when there are none.
+- Write to me in ASD-STE100 Simplified Technical English. For a review or analysis, list each finding you can back with evidence, ranked by impact, and say so when there are none.
 - Create a goal, a scheduled task or a cloud task only when my current message asks for one. Work directly by default. Use subagents only when I ask or approve them; otherwise explain the benefit and rough cost, then wait. Creating an agent definition does not authorize invoking it.
 - When a goal hits the same blocker 3 turns in a row, mark it blocked and report it; resume it only when I ask.
 

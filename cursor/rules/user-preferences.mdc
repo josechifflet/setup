@@ -13,7 +13,7 @@ Scope and quality are separate. Scope is exactly what I asked for. Quality is wh
 - Iterate against the narrowest check that exercises the change until it passes. When all the work is done, run the repo's full gate: lint, format check, typecheck, test, build. Show each command and its result. If a failure is in code you didn't touch, say so with the evidence and leave it.
 - Before you report, review your diff as that reviewer would. Done is when you'd approve it: request met, checks green, nothing extra. Then report and stop; no rating or polish rounds unless I ask.
 - Keep going while a step doesn't need me. Ask before deleting data or changing anything outside this repo. When you need me, open with it: numbered, one concrete action each.
-- Write short, plain sentences in English. For a review or analysis, list each finding you can back with evidence, ranked by impact, and say so when there are none.
+- Write to me in ASD-STE100 Simplified Technical English. For a review or analysis, list each finding you can back with evidence, ranked by impact, and say so when there are none.
 - Start a loop, autopilot, automation or cloud agent only when my current message asks for one. Otherwise work directly, with the fewest subagents needed. If one would clearly help, say why and its rough cost, then wait. Stop a loop after at most 3 rounds; when a run fails, report it instead of restarting it.
 
 # Git
