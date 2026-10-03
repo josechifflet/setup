@@ -56,6 +56,12 @@ DASH = '─'        # ─
 ASSERT = 'it should '
 REFINES = '// REFINES:'
 SEP = ' > '
+# references/notation.md, Wording: these words hide the outcome.
+VAGUE = re.compile(r'^it should (?:(?:not|still|also|always)\s+)*'
+                   r'(?:(?P<verb>handle|process|work|succeed)\b'
+                   r'|be\s+(?P<part>handled|processed|worked|succeeded)\b)'
+                   r'|\b(?P<adverb>correctly|properly)\b', re.IGNORECASE)
+QUOTED = re.compile(r'"[^"]*"|\u201c[^\u201d]*\u201d')
 
 
 def is_blank(s):
@@ -251,6 +257,11 @@ def parse_tree(block, D):
                       "node label must start with 'given ', 'when ', or 'it should '"))
         if lab.endswith('.'):
             D.append((nd.ln, nd.lcol + 1, 'E204', 'label must not end with a period'))
+        vague = VAGUE.search(QUOTED.sub('""', lab)) if is_assert else None
+        if vague:
+            D.append((nd.ln, nd.lcol + 1, 'W305',
+                      "'%s' hides the outcome; name what a reader observes"
+                      % (vague.group('verb') or vague.group('part') or vague.group('adverb'))))
         if is_branch:
             q = nd.parent
             under_assert = False
@@ -985,6 +996,37 @@ root
    └── it should b
       └── it should c
 """)
+W305F = T("""
+root
+└── when the body is valid
+   └── it should process the request
+""")
+W305G = T("""
+root
+└── when the body is valid
+   └── it should save the order correctly
+""")
+W305N = T("""
+root
+└── when the shift ends
+   └── it should show the work order as "Done"
+""")
+W305H = T("""
+root
+└── when the body is valid
+   └── it should be processed
+""")
+W305Q = T("""
+root
+├── when the payment succeeds correctly
+│  └── it should show "Saved correctly"
+├── when the queue is open
+│  └── it should get work orders from the queue
+├── when the import ends
+│  └── it should get processed records
+└── when the toast opens
+   └── it should show \u201cSaved properly\u201d
+""")
 E206F = T("""
 refunds::refund
 // REFINES: orders::cancel order
@@ -1021,6 +1063,9 @@ PRESENT = [
     ('W301 duplicate-sibling', W301F, [('W301', 4)]),
     ('W302 mixed-root-style', W302F, [('W302', 6)]),
     ('W304 deep-assertion', W304F, [('W304', 4)]),
+    ('W305 vague-verb', W305F, [('W305', 3)]),
+    ('W305 vague-adverb', W305G, [('W305', 3)]),
+    ('W305 vague-passive', W305H, [('W305', 3)]),
 ]
 
 ABSENT = [
@@ -1029,6 +1074,8 @@ ABSENT = [
     ('CORRECT#3', C3, 'E101'),
     ('CORRECT#4', C4, 'E204'),
     ('CORRECT#5', C5, 'E106'),
+    ('W305 noun', W305N, 'W305'),
+    ('W305 branch-and-quoted-copy', W305Q, 'W305'),
 ]
 
 

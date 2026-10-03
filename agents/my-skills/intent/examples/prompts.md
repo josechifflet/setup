@@ -122,6 +122,8 @@ Verify every aligned leaf and score how certain each verdict is. Target certaint
 Temporary tests are fine. Delete them before you report.
 ```
 
+Use `/intent verify static <area or unit>` to judge from the code alone: it never runs the software, writes no temporary file, and its target is at most 6.
+
 ## Report status
 
 ```text

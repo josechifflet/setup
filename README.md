@@ -51,7 +51,7 @@ Mine, under the repo's MIT license:
 - `bet`: plans test coverage as a Branching Expectation Tree.
 - `context-doctor`: trims AGENTS.md, CLAUDE.md, rules and skills to what earns its tokens.
 - `handoff`: summarizes a conversation into a handoff document and a kickoff prompt that any model, harness or tool set can continue from.
-- `intent`: writes intent trees people align on, from epics and user stories down to acceptance criteria, refining an outcome into finer trees, then audits, checks and verifies the code against them. Its `verify` mode uses `typesafe-ai`.
+- `intent`: writes intent trees people align on, from epics and user stories down to acceptance criteria, refining an outcome into finer trees, then audits, checks and verifies the code against them. Its `verify` mode uses `typesafe-ai`, and `verify static` judges from the code alone.
 - `paper-use`: builds, mirrors and audits Paper design files.
 - `rate`: scores work on every axis until each is 10.
 - `ui-principles`: rules for clean, scannable UI layout.

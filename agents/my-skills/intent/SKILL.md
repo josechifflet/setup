@@ -1,7 +1,7 @@
 ---
 name: intent
 description: "Writes, aligns, audits, checks and verifies intent trees (.tree): what a product, a contract or a function should do, at any zoom, for humans to confirm and agents to prove. Use for behaviour specs, functional requirements, user stories and their acceptance criteria, breaking a requirement into finer ones, intent reviews, consistency audits, acceptance criteria, test plans, checking code against intent, or scoring how certain a behaviour is met."
-argument-hint: "[map | write | align | audit | check | verify | tests] [area, path or feature]"
+argument-hint: "[map | write | align | audit | check | verify [static] | tests] [area, path or feature]"
 disable-model-invocation: true
 metadata:
   short-description: "Intent trees humans align on and agents check"
@@ -67,7 +67,7 @@ Budgets cap how much a home asks of the humans who align it: by default 12 leave
 - `align`: walk trees with the user until each is confirmed.
 - `audit`: find every inconsistency between the trees, the authority and the repo.
 - `check`: run the software against the trees by one method, one verdict per leaf.
-- `verify`: stack evidence per leaf until its verdict is certain, and score that certainty from 0 to 10.
+- `verify`: stack evidence per leaf until its verdict is certain, and score that certainty from 0 to 10. `verify static` judges from the code alone and never runs the software.
 - `tests`: generate test code whose names are the leaves.
 
 With no mode named, pick from the request. A new feature or a question about intent is `write`. Breaking an outcome into finer rules is `write` with that outcome as the parent. "Is this right?" is `align`. "Is it consistent?" is `audit`. "Does it work?" is `check`. "How sure are we?" is `verify`. Every mode starts by finding the home: look for an index next to `.tree` files, or a root index that lists homes, before you create anything.
@@ -179,7 +179,7 @@ Check the software against the trees. Read `references/check.md` for the methods
 
 ## verify
 
-Read `references/verify.md` and follow it. It needs the `typesafe-ai` skill.
+Read `references/verify.md` and follow it. It uses the `typesafe-ai` skill when the tool has it.
 
 ## tests
 

@@ -97,7 +97,7 @@ The linter reports each of these with its line and column.
 
 Run these from this skill's directory. A directory argument means every `.tree` under it.
 
-- `scripts/trees lint <file|dir>` prints `path:line:col: error[E…]: message` per problem. Fix every error. `--strict` also fails on warnings.
+- `scripts/trees lint <file|dir>` prints `path:line:col: error[E…]: message`, or `warning[W…]`, per problem. Fix every error. `--strict` also fails on warnings: W301 a repeated sibling label, W302 mixed root styles, W303 trailing whitespace or CRLF line endings, W304 an effect under an effect, W305 an outcome that says `handle`, `process`, `work` or `succeed` as its verb, with `be` before its past participle, or `correctly` or `properly` outside quoted copy.
 - `scripts/trees paths <file|dir>` prints one sentence per leaf, `path:line: root — given …, when …, it should …`, with its effects below it after `+`. A child's leaves add `^ refines <parent root> > <outcome>`. An outcome that a tree in scope refines adds `> refined by path:line root`.
 - `--smoke` prints only the smoke leaf of each tree. `--aligned` skips drafts.
 - `scripts/trees audit <home>` lints every unit, checks the index and the area cards against the disk, resolves every `// REFINES:` line across the homes it reads, and prints one summary line per area. `references/audit.md` lists its codes.

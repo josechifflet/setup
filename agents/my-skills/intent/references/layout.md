@@ -44,6 +44,7 @@ Fill in every `{…}`. Write the real path of this skill's `scripts/trees` into 
 - Authority: {`docs/product/` | a spec path | the trees}. The authority wins over a tree. An aligned tree wins over code.
 - Check: {trace | tests | run}. {How to start the software or run the suite.}
 - Reports: {a folder, or "in chat"}.
+- TypeSafe: {allowed | not allowed}. Whether `verify` may send code and test excerpts to TypeSafe. {Only once `verify` has asked.}
 
 ## Areas
 
