@@ -35,8 +35,9 @@ copy() {
   # The managed policy contains @HOME@ paths and is expanded separately.
   [[ "$1" != codex ]] || excludes+=(--exclude "/requirements.toml")
   [[ -n "$dry" ]] || mkdir -p "$2"
+  # A folder's README.md documents the repo, not the home.
   rsync -a ${dry:+"$dry"} --backup --suffix=.bak --exclude .DS_Store \
-    ${excludes[@]+"${excludes[@]}"} "$repo/$1/" "$2/"
+    --exclude /README.md ${excludes[@]+"${excludes[@]}"} "$repo/$1/" "$2/"
 }
 
 # Codex reads the managed macOS preference, not the user requirements file.
@@ -95,6 +96,14 @@ copy codex "$HOME/.codex"
 copy cursor "$HOME/.cursor"
 copy grok "$HOME/.grok"
 copy opencode "$HOME/.config/opencode"
+
+# Claude's rules run checks through quiet, so it must be on PATH.
+[[ -n "$dry" ]] || mkdir -p "$HOME/.local/bin"
+rsync -a ${dry:+"$dry"} --backup --suffix=.bak "$repo/bin/quiet" "$HOME/.local/bin/"
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) echo "install.sh: add ~/.local/bin to PATH, so Claude can run quiet" >&2 ;;
+esac
 for f in $merged; do
   merge "$f" "$HOME/.$f"
 done

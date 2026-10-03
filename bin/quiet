@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Runs a check without filling an agent's context: one line on a pass, the
+# full output and the exit status on a failure or a kill.
+# Usage: quiet <command> [args...]
+set -u
+
+if [[ "$#" -eq 0 ]]; then
+  echo "usage: quiet <command> [args...]" >&2
+  exit 64
+fi
+
+out="$(mktemp)" || exit 1
+trap 'rm -f "$out"' EXIT
+trap 'cat "$out"; echo "✗ $* (killed)"; exit 143' INT TERM
+
+if "$@" > "$out" 2>&1; then
+  echo "✓ $*"
+else
+  status=$?
+  cat "$out"
+  echo "✗ $* (exit $status)"
+  exit "$status"
+fi
