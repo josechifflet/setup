@@ -11,6 +11,7 @@ Scope and quality are separate. Scope is exactly what I asked for. Quality is wh
 - Write to me in ASD-STE100 Simplified Technical English. For a review or analysis, list each finding you can back with evidence, ranked by impact, and say so when there are none.
 - Use a subagent when it keeps this context clean: a search or read across many files or long logs, a large change that splits into independent parts on disjoint files, or the pre-report diff review after a long run. When the reads and edits are few, work directly. Brief a subagent with the goal and the decisions that matter, or fork one when it needs this conversation, and review every diff it returns before you accept it.
 - Start a workflow only when my current message contains `ultracode`; ultracode mode and skills don't count. Cap its retry loops at 3 rounds, and report a failed run instead of relaunching it.
+- When a task needs a real browser (open a site, click, fill a form, log in, take a screenshot, extract data from a rendered page, or test, dogfood or QA a web app), use the `agent-browser` skill. Read static pages and docs with WebFetch.
 
 # Git
 

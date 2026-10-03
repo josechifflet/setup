@@ -28,6 +28,7 @@
   "disableRemoteControl": true,
   "enableArtifact": false,
   "enabledPlugins": {
+    "cc-plugin-you-should-know@builtin": true,
     "context7@claude-plugins-official": true,
     "paper-desktop@paper": true,
     "rust-analyzer-lsp@claude-plugins-official": true,
@@ -154,17 +155,29 @@
       "Bash(wt switch *)"
     ]
   },
+  "pluginConfigs": {
+    "agents-md@builtin": {
+      "options": {
+        "instructionFiles": "claude-md-and-agents-md"
+      }
+    }
+  },
   "respectGitignore": false,
   "skillOverrides": {
+    "agent-browser": "name-only",
+    "artifact-capabilities": "off",
+    "artifact-diagramming": "off",
     "batch": "off",
+    "claude-in-chrome": "off",
     "dataviz": "off",
     "design": "off",
     "design-sync": "off",
     "fewer-permission-prompts": "off",
     "keybindings-help": "off",
-    "ponytail": "off",
+    "loop": "off",
     "slides": "off",
-    "update-config": "off"
+    "update-config": "off",
+    "workflow-authoring": "off"
   },
   "spinnerTipsEnabled": false,
   "statusLine": {
