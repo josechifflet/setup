@@ -89,20 +89,18 @@ merge() {
   rm -f "$tmp" "$tmp.out"
 }
 
-[[ -n "$dry" ]] || mkdir -p "$HOME/.agents"
-rsync -a ${dry:+"$dry"} --backup --suffix=.bak "$repo/agents/AGENTS.md" "$HOME/.agents/"
 copy claude "$HOME/.claude"
 copy codex "$HOME/.codex"
 copy cursor "$HOME/.cursor"
 copy grok "$HOME/.grok"
 copy opencode "$HOME/.config/opencode"
 
-# Claude's rules run checks through quiet, so it must be on PATH.
+# Every tool's rules run checks through quiet, so it must be on PATH.
 [[ -n "$dry" ]] || mkdir -p "$HOME/.local/bin"
 rsync -a ${dry:+"$dry"} --backup --suffix=.bak "$repo/bin/quiet" "$HOME/.local/bin/"
 case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
-  *) echo "install.sh: add ~/.local/bin to PATH, so Claude can run quiet" >&2 ;;
+  *) echo "install.sh: add ~/.local/bin to PATH, so the agents can run quiet" >&2 ;;
 esac
 for f in $merged; do
   merge "$f" "$HOME/.$f"
